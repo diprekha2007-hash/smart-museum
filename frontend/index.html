@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartMuseum — Visitor Analytics & Connected Graph System</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Chart.js and D3.js for Interactive Charts & Force-Directed Graph -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+  <!-- SIDEBAR NAVIGATION -->
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">S</span>
+      <div>
+        <strong>SmartMuseum</strong>
+        <small>Visitor Analytics System</small>
+      </div>
+    </div>
+    <nav>
+      <button class="nav-link active" data-page="overview">
+        <span class="icon">📊</span>
+        <span>Dashboard</span>
+      </button>
+      <button class="nav-link" data-page="visitors">
+        <span class="icon">👥</span>
+        <span>Visitors</span>
+      </button>
+      <button class="nav-link" data-page="galleries">
+        <span class="icon">🏛️</span>
+        <span>Galleries</span>
+      </button>
+      <button class="nav-link" data-page="artifacts">
+        <span class="icon">🏺</span>
+        <span>Artifacts</span>
+      </button>
+      <button class="nav-link" data-page="exhibitions">
+        <span class="icon">🎨</span>
+        <span>Exhibitions</span>
+      </button>
+      <button class="nav-link" data-page="events">
+        <span class="icon">📅</span>
+        <span>Events</span>
+      </button>
+      <button class="nav-link" data-page="analytics">
+        <span class="icon">📈</span>
+        <span>Analytics</span>
+      </button>
+      <button class="nav-link" data-page="explorer">
+        <span class="icon">🕸️</span>
+        <span>Graph Explorer</span>
+      </button>
+    </nav>
+    <div class="sidebar-note">
+      <span class="dot" id="sidebar-dot"></span>
+      <div>
+        <b>Neo4j AuraDB</b>
+        <small id="sidebar-db-status">Checking connection…</small>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN VIEWPORT -->
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow" id="section-eyebrow">SMART MUSEUM / ANALYTICS</p>
+        <h1 id="page-title">Museum Dashboard</h1>
+      </div>
+      <div class="topbar-actions">
+        <div class="top-status" id="top-status-indicator">
+          <span class="dot"></span>
+          <span id="connection-label">Checking Neo4j Aura…</span>
+        </div>
+        <button id="refresh-btn" class="secondary-btn" title="Refresh Live Data">⟳ Sync Data</button>
+      </div>
+    </header>
+
+    <!-- NOTIFICATION BANNER IF DISCONNECTED -->
+    <div id="connection-banner" class="connection-alert hidden">
+      <div class="alert-content">
+        <strong>⚡ Neo4j Aura Credentials Needed</strong>
+        <p>Backend is running, but <code>backend/.env</code> requires your Neo4j Aura URI and password to pull live cloud data. Configure <code>NEO4J_URI</code>, <code>NEO4J_USERNAME</code>, and <code>NEO4J_PASSWORD</code>.</p>
+      </div>
+    </div>
+
+    <!-- ================= 1. DASHBOARD PAGE ================= -->
+    <section id="overview-page" class="page">
+      <div class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow light">SMART VISITOR ANALYTICS & CURATION</p>
+          <h2>Connected heritage,<br>driven by graph intelligence.</h2>
+          <p>Real-time telemetry and relationship modeling bridging visitors, artifacts, galleries, and curated exhibitions powered by Neo4j AuraDB.</p>
+          <div class="hero-buttons">
+            <button class="primary-btn" data-go="visitors">Explore Visitors <span>→</span></button>
+            <button class="hero-outline-btn" data-go="explorer">Launch Graph Explorer <span>🕸</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">COLLECTION METRICS</p>
+          <h2>At a Glance</h2>
+        </div>
+        <span class="subtle">Live graph counts from Neo4j</span>
+      </div>
+
+      <div class="stat-grid" id="stats-grid">
+        <div class="stat-card">
+          <div class="stat-header"><span>Total Visitors</span><span class="badge-icon">👥</span></div>
+          <strong id="stat-visitors">—</strong>
+          <small class="stat-desc">Unique registered visitors</small>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header"><span>Artifacts Catalogue</span><span class="badge-icon">🏺</span></div>
+          <strong id="stat-artifacts">—</strong>
+          <small class="stat-desc">Catalogued relics & artworks</small>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header"><span>Active Galleries</span><span class="badge-icon">🏛️</span></div>
+          <strong id="stat-galleries">—</strong>
+          <small class="stat-desc">Exhibition halls & rooms</small>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header"><span>Curated Exhibitions</span><span class="badge-icon">🎨</span></div>
+          <strong id="stat-exhibitions">—</strong>
+          <small class="stat-desc">Thematic special showcases</small>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header"><span>Museum Events</span><span class="badge-icon">📅</span></div>
+          <strong id="stat-events">—</strong>
+          <small class="stat-desc">Scheduled walks & talks</small>
+        </div>
+        <div class="stat-card">
+          <div class="stat-header"><span>Event Registrations</span><span class="badge-icon">🎟️</span></div>
+          <strong id="stat-registrations">—</strong>
+          <small class="stat-desc">Participant bookings</small>
+        </div>
+      </div>
+
+      <!-- Quick Dashboard Charts -->
+      <div class="dashboard-charts-grid">
+        <div class="chart-box">
+          <div class="chart-header">
+            <h3>Popular Galleries by Footfall</h3>
+            <span class="subtle">Based on visits</span>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="dash-galleries-chart"></canvas>
+          </div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-header">
+            <h3>Exhibitions by Artifact Volume</h3>
+            <span class="subtle">Curated density</span>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="dash-exhibitions-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">HIGHLIGHTS</p>
+          <h2>Featured Artifacts</h2>
+        </div>
+        <button class="text-btn" data-go="artifacts">View all artifacts →</button>
+      </div>
+      <div id="featured-artifacts" class="artifact-grid">
+        <p class="muted">Loading collection from Neo4j…</p>
+      </div>
+    </section>
+
+    <!-- ================= 2. VISITOR MANAGEMENT ================= -->
+    <section id="visitors-page" class="page hidden">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">ATTENDANCE & BEHAVIOR</p>
+          <h2>Visitor Management</h2>
+          <p class="muted">View registered visitors, direct Neo4j entries, preferences, and journey tracking.</p>
+        </div>
+        <button class="primary-btn" id="open-add-visitor-btn">+ Register New Visitor</button>
+      </div>
+
+      <div class="toolbar-wrap">
+        <div class="search-wrap">
+          <span>⌕</span>
+          <input id="visitor-search" placeholder="Search visitors by name, ID (e.g. V001), email, or category…">
+        </div>
+        <div class="filter-controls">
+          <select id="visitor-type-filter" class="select-filter">
+            <option value="All">All Visitor Types</option>
+            <option value="Student">Student</option>
+            <option value="General">General</option>
+            <option value="Senior Researcher">Researcher</option>
+            <option value="Tourist">Tourist</option>
+          </select>
+          <select id="visitor-sort" class="select-filter">
+            <option value="name-asc">Sort: Name (A-Z)</option>
+            <option value="name-desc">Sort: Name (Z-A)</option>
+            <option value="visits-desc">Sort: Most Visits</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="visitors-layout">
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Visitor ID</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Visits</th>
+                <th>Preferences</th>
+                <th>Events</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="visitors-table-body">
+              <tr><td colspan="7" class="loading-state">Loading visitors from Neo4j…</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Visitor Detail Slide-over / Panel -->
+        <div id="visitor-profile-panel" class="profile-panel hidden">
+          <div class="profile-header">
+            <h3 id="vp-name">Visitor Profile</h3>
+            <button id="close-profile-btn" class="close-btn">&times;</button>
+          </div>
+          <div class="profile-body" id="vp-details">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 3. GALLERY MANAGEMENT ================= -->
+    <section id="galleries-page" class="page hidden">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">MUSEUM SPACES</p>
+          <h2>Gallery Management</h2>
+          <p class="muted">Architectural spaces, floor locations, capacity, visitor activity and housed artifacts.</p>
+        </div>
+      </div>
+      <div id="galleries-list" class="tile-grid">
+        <div class="loading-state">Loading galleries…</div>
+      </div>
+    </section>
+
+    <!-- ================= 4. ARTIFACT MANAGEMENT ================= -->
+    <section id="artifacts-page" class="page hidden">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">THE ARCHIVE</p>
+          <h2>Artifact Catalogue</h2>
+          <p class="muted">Search historical objects, filter by classification categories, and examine origins.</p>
+        </div>
+      </div>
+
+      <div class="category-tabs" id="artifact-category-tabs">
+        <button class="tab-btn active" data-category="All">All Categories</button>
+        <button class="tab-btn" data-category="Paintings">Paintings</button>
+        <button class="tab-btn" data-category="Sculptures">Sculptures</button>
+        <button class="tab-btn" data-category="Fossils">Fossils</button>
+        <button class="tab-btn" data-category="Manuscripts">Manuscripts</button>
+        <button class="tab-btn" data-category="Historical Artifacts">Historical Artifacts</button>
+        <button class="tab-btn" data-category="Pottery">Pottery</button>
+      </div>
+
+      <div class="search-wrap">
+        <span>⌕</span>
+        <input id="artifact-search" placeholder="Search artifacts by title, origin, period, or historical details…">
+      </div>
+
+      <div id="artifacts-list" class="artifact-grid">
+        <div class="loading-state">Loading artifacts catalogue…</div>
+      </div>
+    </section>
+
+    <!-- ================= 5. EXHIBITIONS MANAGEMENT ================= -->
+    <section id="exhibitions-page" class="page hidden">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">THEMATIC EXHIBITIONS</p>
+          <h2>Exhibitions Management</h2>
+          <p class="muted">Curated showcases, duration dates, venues and linked exhibition artifacts.</p>
+        </div>
+      </div>
+      <div id="exhibitions-list" class="tile-grid">
+        <div class="loading-state">Loading exhibitions…</div>
+      </div>
+    </section>
+
+    <!-- ================= 6. EVENTS MANAGEMENT ================= -->
+    <section id="events-page" class="page hidden">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">COMMUNITY & PROGRAMMING</p>
+          <h2>Events & Schedules</h2>
+          <p class="muted">Upcoming workshops, heritage tours, lectures, and participant registrations.</p>
+        </div>
+      </div>
+      <div id="events-list" class="tile-grid">
+        <div class="loading-state">Loading events…</div>
+      </div>
+    </section>
+
+    <!-- ================= 7. ADVANCED ANALYTICS ================= -->
+    <section id="analytics-page" class="page hidden">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">INTELLIGENCE & INSIGHTS</p>
+          <h2>Visitor & Collection Analytics</h2>
+          <p class="muted">Quantitative graph telemetry, visitor trends over time, and category breakdowns.</p>
+        </div>
+      </div>
+
+      <div class="analytics-charts-grid">
+        <div class="chart-box full-width">
+          <div class="chart-header">
+            <h3>Visitor Attendance Trends Over Time</h3>
+            <span class="subtle">Recorded visits by timeline</span>
+          </div>
+          <div class="chart-canvas-wrap large">
+            <canvas id="trend-visits-chart"></canvas>
+          </div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-header">
+            <h3>Gallery Footfall Ranking</h3>
+            <span class="subtle">Total gallery visits</span>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="analytics-galleries-chart"></canvas>
+          </div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-header">
+            <h3>Visitor Interest & Preferences</h3>
+            <span class="subtle">Preference breakdown</span>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="analytics-pref-chart"></canvas>
+          </div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-header">
+            <h3>Artifact Distribution by Category</h3>
+            <span class="subtle">Catalogue proportion</span>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="analytics-category-chart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 8. GRAPH RELATIONSHIP EXPLORER ================= -->
+    <section id="explorer-page" class="page hidden">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">KNOWLEDGE GRAPH VISUALIZER</p>
+          <h2>Graph Relationship Explorer</h2>
+          <p class="muted">Interactive force-directed graph illustrating real Neo4j nodes and relationships.</p>
+        </div>
+        <div class="explorer-controls">
+          <span class="legend-chip chip-visitor">● Visitor</span>
+          <span class="legend-chip chip-gallery">● Gallery</span>
+          <span class="legend-chip chip-artifact">● Artifact</span>
+          <span class="legend-chip chip-exhibition">● Exhibition</span>
+          <span class="legend-chip chip-event">● Event</span>
+          <span class="legend-chip chip-visit">● Visit</span>
+          <button id="reset-graph-btn" class="secondary-btn" style="padding: 6px 12px; font-size: 11px;">Reset Physics</button>
+        </div>
+      </div>
+
+      <div class="graph-explorer-container">
+        <svg id="graph-svg"></svg>
+        <div id="graph-tooltip" class="graph-tooltip hidden"></div>
+      </div>
+    </section>
+
+    <!-- MODAL: ADD VISITOR -->
+    <div id="add-visitor-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Register New Visitor</h3>
+          <button id="close-modal-btn" class="close-btn">&times;</button>
+        </div>
+        <form id="add-visitor-form">
+          <div class="form-group">
+            <label for="v-name">Full Name *</label>
+            <input type="text" id="v-name" required placeholder="e.g. Maya Krishnan">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="v-email">Email Address</label>
+              <input type="email" id="v-email" placeholder="e.g. maya@example.com">
+            </div>
+            <div class="form-group">
+              <label for="v-phone">Phone Number</label>
+              <input type="tel" id="v-phone" placeholder="e.g. +91 98765 00000">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="v-gender">Gender</label>
+              <select id="v-gender">
+                <option value="Female">Female</option>
+                <option value="Male">Male</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="v-type">Visitor Classification</label>
+              <select id="v-type">
+                <option value="General">General</option>
+                <option value="Student">Student</option>
+                <option value="Senior Researcher">Researcher</option>
+                <option value="Tourist">Tourist</option>
+                <option value="VIP">VIP</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="secondary-btn" id="cancel-modal-btn">Cancel</button>
+            <button type="submit" class="primary-btn">Save to Neo4j Graph</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <footer>
+      SMARTMUSEUM <span>·</span> Complete Full-Stack Visitor Analytics & Neo4j Graph Deployment
+    </footer>
+  </main>
+
+  <div id="toast" role="status" class="toast hidden"></div>
+  <script src="app.js"></script>
+</body>
+</html>

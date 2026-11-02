@@ -1,0 +1,46 @@
+{
+  "artifacts": {
+    "A001": "images/artifacts/artifact_A001.jpg",
+    "A002": "images/artifacts/artifact_A002.jpg",
+    "A003": "images/artifacts/artifact_A003.jpg",
+    "A004": "images/artifacts/artifact_A004.jpg",
+    "A005": "images/artifacts/artifact_A005.jpg",
+    "A006": "images/artifacts/artifact_A006.jpg",
+    "A007": "images/artifacts/artifact_A007.jpg",
+    "A008": "images/artifacts/artifact_A008.jpg",
+    "A009": "images/artifacts/artifact_A009.jpg",
+    "A010": "images/artifacts/artifact_A010.jpg",
+    "A011": "images/artifacts/artifact_A011.jpg",
+    "A012": "images/artifacts/artifact_A012.jpg"
+  },
+  "galleries": {
+    "G001": "images/galleries/gallery_G001.jpg",
+    "G002": "images/galleries/gallery_G002.jpg",
+    "G003": "images/galleries/gallery_G003.jpg",
+    "G004": "images/galleries/gallery_G004.jpg",
+    "G005": "images/galleries/gallery_G005.jpg",
+    "G006": "images/galleries/gallery_G006.jpg",
+    "G007": "images/galleries/gallery_G007.jpg",
+    "G008": "images/galleries/gallery_G008.jpg",
+    "G009": "images/galleries/gallery_G009.jpg",
+    "G010": "images/galleries/gallery_G010.jpg"
+  },
+  "exhibitions": {
+    "EX001": "images/exhibitions/exhibition_EX001.jpg",
+    "EX002": "images/exhibitions/exhibition_EX002.jpg",
+    "EX003": "images/exhibitions/exhibition_EX003.jpg",
+    "EX004": "images/exhibitions/exhibition_EX004.jpg",
+    "EX005": "images/exhibitions/exhibition_EX005.jpg",
+    "EX006": "images/exhibitions/exhibition_EX006.jpg"
+  },
+  "events": {
+    "EV001": "images/events/event_EV001.jpg",
+    "EV002": "images/events/event_EV002.jpg",
+    "EV003": "images/events/event_EV003.jpg",
+    "EV004": "images/events/event_EV004.jpg",
+    "EV005": "images/events/event_EV005.jpg",
+    "EV006": "images/events/event_EV006.jpg",
+    "EV007": "images/events/event_EV007.jpg",
+    "EV008": "images/events/event_EV008.jpg"
+  }
+}
