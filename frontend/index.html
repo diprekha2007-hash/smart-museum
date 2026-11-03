@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SmartMuseum — Visitor Analytics & Connected Graph System</title>
+  <title>SmartMuseum — Visitor Analytics &amp; Connected Graph System</title>
   <link rel="stylesheet" href="styles.css">
   <!-- Chart.js and D3.js for Interactive Charts & Force-Directed Graph -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -44,6 +44,14 @@
         <span class="icon">📅</span>
         <span>Events</span>
       </button>
+      <button class="nav-link" data-page="tickets">
+        <span class="icon">🎟️</span>
+        <span>Tickets</span>
+      </button>
+      <button class="nav-link" data-page="bookings">
+        <span class="icon">📋</span>
+        <span>Bookings</span>
+      </button>
       <button class="nav-link" data-page="analytics">
         <span class="icon">📈</span>
         <span>Analytics</span>
@@ -82,7 +90,7 @@
     <div id="connection-banner" class="connection-alert hidden">
       <div class="alert-content">
         <strong>⚡ Neo4j Aura Credentials Needed</strong>
-        <p>Backend is running, but <code>backend/.env</code> requires your Neo4j Aura URI and password to pull live cloud data. Configure <code>NEO4J_URI</code>, <code>NEO4J_USERNAME</code>, and <code>NEO4J_PASSWORD</code>.</p>
+        <p>Backend is running, but <code>backend/.env</code> requires your Neo4j Aura URI and password. Configure <code>NEO4J_URI</code>, <code>NEO4J_USERNAME</code>, and <code>NEO4J_PASSWORD</code>.</p>
       </div>
     </div>
 
@@ -90,7 +98,7 @@
     <section id="overview-page" class="page">
       <div class="hero">
         <div class="hero-copy">
-          <p class="eyebrow light">SMART VISITOR ANALYTICS & CURATION</p>
+          <p class="eyebrow light">SMART VISITOR ANALYTICS &amp; CURATION</p>
           <h2>Connected heritage,<br>driven by graph intelligence.</h2>
           <p>Real-time telemetry and relationship modeling bridging visitors, artifacts, galleries, and curated exhibitions powered by Neo4j AuraDB.</p>
           <div class="hero-buttons">
@@ -117,12 +125,12 @@
         <div class="stat-card">
           <div class="stat-header"><span>Artifacts Catalogue</span><span class="badge-icon">🏺</span></div>
           <strong id="stat-artifacts">—</strong>
-          <small class="stat-desc">Catalogued relics & artworks</small>
+          <small class="stat-desc">Catalogued relics &amp; artworks</small>
         </div>
         <div class="stat-card">
           <div class="stat-header"><span>Active Galleries</span><span class="badge-icon">🏛️</span></div>
           <strong id="stat-galleries">—</strong>
-          <small class="stat-desc">Exhibition halls & rooms</small>
+          <small class="stat-desc">Exhibition halls &amp; rooms</small>
         </div>
         <div class="stat-card">
           <div class="stat-header"><span>Curated Exhibitions</span><span class="badge-icon">🎨</span></div>
@@ -132,12 +140,12 @@
         <div class="stat-card">
           <div class="stat-header"><span>Museum Events</span><span class="badge-icon">📅</span></div>
           <strong id="stat-events">—</strong>
-          <small class="stat-desc">Scheduled walks & talks</small>
+          <small class="stat-desc">Scheduled walks &amp; talks</small>
         </div>
         <div class="stat-card">
-          <div class="stat-header"><span>Event Registrations</span><span class="badge-icon">🎟️</span></div>
-          <strong id="stat-registrations">—</strong>
-          <small class="stat-desc">Participant bookings</small>
+          <div class="stat-header"><span>Ticket Bookings</span><span class="badge-icon">🎟️</span></div>
+          <strong id="stat-bookings">—</strong>
+          <small class="stat-desc">Total demo bookings</small>
         </div>
       </div>
 
@@ -179,7 +187,7 @@
     <section id="visitors-page" class="page hidden">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">ATTENDANCE & BEHAVIOR</p>
+          <p class="eyebrow">ATTENDANCE &amp; BEHAVIOR</p>
           <h2>Visitor Management</h2>
           <p class="muted">View registered visitors, direct Neo4j entries, preferences, and journey tracking.</p>
         </div>
@@ -264,17 +272,13 @@
         </div>
       </div>
 
+      <!-- Dynamic category tabs built from DB -->
       <div class="category-tabs" id="artifact-category-tabs">
         <button class="tab-btn active" data-category="All">All Categories</button>
-        <button class="tab-btn" data-category="Paintings">Paintings</button>
-        <button class="tab-btn" data-category="Sculptures">Sculptures</button>
-        <button class="tab-btn" data-category="Fossils">Fossils</button>
-        <button class="tab-btn" data-category="Manuscripts">Manuscripts</button>
-        <button class="tab-btn" data-category="Historical Artifacts">Historical Artifacts</button>
-        <button class="tab-btn" data-category="Pottery">Pottery</button>
+        <!-- Additional tabs injected dynamically from /api/artifact-categories -->
       </div>
 
-      <div class="search-wrap">
+      <div class="search-wrap" style="margin-bottom: 16px;">
         <span>⌕</span>
         <input id="artifact-search" placeholder="Search artifacts by title, origin, period, or historical details…">
       </div>
@@ -302,8 +306,8 @@
     <section id="events-page" class="page hidden">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">COMMUNITY & PROGRAMMING</p>
-          <h2>Events & Schedules</h2>
+          <p class="eyebrow">COMMUNITY &amp; PROGRAMMING</p>
+          <h2>Events &amp; Schedules</h2>
           <p class="muted">Upcoming workshops, heritage tours, lectures, and participant registrations.</p>
         </div>
       </div>
@@ -312,12 +316,118 @@
       </div>
     </section>
 
-    <!-- ================= 7. ADVANCED ANALYTICS ================= -->
+    <!-- ================= 7. TICKET COUNTER ================= -->
+    <section id="tickets-page" class="page hidden">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">VISITOR ADMISSIONS</p>
+          <h2>Ticket Counter</h2>
+          <p class="muted">Book access passes and admission tickets for galleries, exhibitions, events, and artifacts. Demo booking system.</p>
+        </div>
+      </div>
+
+      <!-- Ticket type selector tabs -->
+      <div class="category-tabs" id="ticket-type-tabs" style="margin-bottom: 20px;">
+        <button class="tab-btn active" data-ttype="EVENT">Events</button>
+        <button class="tab-btn" data-ttype="EXHIBITION">Exhibitions</button>
+        <button class="tab-btn" data-ttype="GALLERY">Galleries</button>
+        <button class="tab-btn" data-ttype="ARTIFACT">Artifacts</button>
+      </div>
+
+      <!-- Pricing reference -->
+      <div class="pricing-banner" id="pricing-banner">
+        <p class="eyebrow" style="margin-bottom: 8px;">ADMISSION PRICING</p>
+        <div id="pricing-list" class="pricing-list"></div>
+      </div>
+
+      <!-- Item listing for booking -->
+      <div id="tickets-item-list" class="tile-grid" style="margin-top: 20px;">
+        <div class="loading-state">Loading items…</div>
+      </div>
+    </section>
+
+    <!-- ================= 8. BOOKINGS MANAGEMENT ================= -->
+    <section id="bookings-page" class="page hidden">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">BOOKING RECORDS</p>
+          <h2>Booking Management</h2>
+          <p class="muted">View, search, and manage all demo ticket bookings stored in Neo4j.</p>
+        </div>
+        <button class="secondary-btn" id="export-bookings-btn">⬇ Export CSV</button>
+      </div>
+
+      <!-- Booking stats row -->
+      <div class="booking-stats-row" id="booking-stats-row">
+        <div class="bk-stat-card">
+          <span>Total Bookings</span>
+          <strong id="bk-total">—</strong>
+        </div>
+        <div class="bk-stat-card">
+          <span>Confirmed</span>
+          <strong id="bk-confirmed" style="color: var(--green);">—</strong>
+        </div>
+        <div class="bk-stat-card">
+          <span>Cancelled</span>
+          <strong id="bk-cancelled" style="color: var(--danger);">—</strong>
+        </div>
+        <div class="bk-stat-card">
+          <span>Total Revenue</span>
+          <strong id="bk-revenue" style="color: var(--gold);">—</strong>
+        </div>
+      </div>
+
+      <!-- Bookings filters -->
+      <div class="toolbar-wrap" style="margin-top: 16px;">
+        <div class="search-wrap">
+          <span>⌕</span>
+          <input id="booking-search" placeholder="Search by visitor name, booking ID, or item name…">
+        </div>
+        <div class="filter-controls">
+          <select id="booking-status-filter" class="select-filter">
+            <option value="">All Statuses</option>
+            <option value="CONFIRMED">Confirmed</option>
+            <option value="CANCELLED">Cancelled</option>
+          </select>
+          <select id="booking-type-filter" class="select-filter">
+            <option value="">All Types</option>
+            <option value="EVENT">Events</option>
+            <option value="EXHIBITION">Exhibitions</option>
+            <option value="GALLERY">Galleries</option>
+            <option value="ARTIFACT">Artifacts</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="table-container" style="margin-top: 16px;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Booking ID</th>
+              <th>Visitor</th>
+              <th>Item</th>
+              <th>Type</th>
+              <th>Ticket</th>
+              <th>Qty</th>
+              <th>Amount</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="bookings-table-body">
+            <tr><td colspan="10" class="loading-state">Loading bookings…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= 9. ADVANCED ANALYTICS ================= -->
     <section id="analytics-page" class="page hidden">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">INTELLIGENCE & INSIGHTS</p>
-          <h2>Visitor & Collection Analytics</h2>
+          <p class="eyebrow">INTELLIGENCE &amp; INSIGHTS</p>
+          <h2>Visitor &amp; Collection Analytics</h2>
           <p class="muted">Quantitative graph telemetry, visitor trends over time, and category breakdowns.</p>
         </div>
       </div>
@@ -343,7 +453,7 @@
         </div>
         <div class="chart-box">
           <div class="chart-header">
-            <h3>Visitor Interest & Preferences</h3>
+            <h3>Visitor Interest &amp; Preferences</h3>
             <span class="subtle">Preference breakdown</span>
           </div>
           <div class="chart-canvas-wrap">
@@ -359,10 +469,19 @@
             <canvas id="analytics-category-chart"></canvas>
           </div>
         </div>
+        <div class="chart-box">
+          <div class="chart-header">
+            <h3>Bookings by Item Type</h3>
+            <span class="subtle">Ticket booking distribution</span>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="analytics-bookings-chart"></canvas>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- ================= 8. GRAPH RELATIONSHIP EXPLORER ================= -->
+    <!-- ================= 10. GRAPH RELATIONSHIP EXPLORER ================= -->
     <section id="explorer-page" class="page hidden">
       <div class="section-heading">
         <div>
@@ -381,9 +500,25 @@
         </div>
       </div>
 
-      <div class="graph-explorer-container">
+      <!-- Graph filter chips -->
+      <div class="graph-filter-row" id="graph-filter-row">
+        <button class="graph-filter-btn active" data-gfilter="ALL">All Nodes</button>
+        <button class="graph-filter-btn" data-gfilter="VISITOR">Visitors</button>
+        <button class="graph-filter-btn" data-gfilter="GALLERY">Galleries</button>
+        <button class="graph-filter-btn" data-gfilter="ARTIFACT">Artifacts</button>
+        <button class="graph-filter-btn" data-gfilter="EXHIBITION">Exhibitions</button>
+        <button class="graph-filter-btn" data-gfilter="EVENT">Events</button>
+        <button class="graph-filter-btn" data-gfilter="VISIT">Visits</button>
+      </div>
+
+      <div class="graph-explorer-container" id="graph-container">
+        <div id="graph-loading" class="graph-loading-overlay">
+          <div class="graph-loading-spinner"></div>
+          <p>Loading Neo4j graph data…</p>
+        </div>
         <svg id="graph-svg"></svg>
         <div id="graph-tooltip" class="graph-tooltip hidden"></div>
+        <div id="graph-info-bar" class="graph-info-bar"></div>
       </div>
     </section>
 
@@ -437,8 +572,89 @@
       </div>
     </div>
 
+    <!-- MODAL: BOOK TICKET -->
+    <div id="booking-modal" class="modal-overlay hidden">
+      <div class="modal-card" style="max-width: 560px;">
+        <div class="modal-header">
+          <h3 id="booking-modal-title">Book Tickets</h3>
+          <button id="close-booking-modal-btn" class="close-btn">&times;</button>
+        </div>
+        <div id="booking-modal-body">
+          <!-- Item image + info row -->
+          <div class="booking-item-row">
+            <div class="booking-item-image" id="booking-item-image-wrap"></div>
+            <div>
+              <p class="eyebrow" id="booking-item-type-label" style="margin-bottom: 4px;">EVENT</p>
+              <h4 id="booking-item-name" style="margin: 0 0 4px; font-family: 'Playfair Display', serif;"></h4>
+              <small id="booking-item-meta" style="color: var(--muted);"></small>
+            </div>
+          </div>
+
+          <form id="booking-form" style="margin-top: 16px;">
+            <input type="hidden" id="bk-item-id">
+            <input type="hidden" id="bk-item-type">
+            <input type="hidden" id="bk-item-name">
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bk-visitor-name">Your Name *</label>
+                <input type="text" id="bk-visitor-name" required placeholder="Full name">
+              </div>
+              <div class="form-group">
+                <label for="bk-visitor-email">Email (optional)</label>
+                <input type="email" id="bk-visitor-email" placeholder="email@example.com">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bk-ticket-type">Ticket Type</label>
+                <select id="bk-ticket-type"></select>
+              </div>
+              <div class="form-group">
+                <label>Quantity</label>
+                <div class="qty-control">
+                  <button type="button" id="qty-minus" class="qty-btn">−</button>
+                  <span id="qty-display" class="qty-display">1</span>
+                  <button type="button" id="qty-plus" class="qty-btn">+</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="booking-total-row">
+              <span>Total Amount:</span>
+              <strong id="booking-total-display" class="booking-total-amount">₹0</strong>
+            </div>
+
+            <div class="modal-actions">
+              <button type="button" class="secondary-btn" id="cancel-booking-btn">Cancel</button>
+              <button type="submit" class="primary-btn" id="confirm-booking-btn">Confirm Booking →</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: BOOKING CONFIRMATION / TICKET -->
+    <div id="ticket-confirmation-modal" class="modal-overlay hidden">
+      <div class="modal-card ticket-confirm-card">
+        <div class="ticket-confirm-header">
+          <div class="ticket-confirm-check">✓</div>
+          <h3>Booking Confirmed!</h3>
+          <p class="muted" style="margin: 0;">Demo booking reference issued by SmartMuseum</p>
+        </div>
+        <div id="ticket-confirm-body" class="ticket-confirm-body">
+          <!-- Populated dynamically -->
+        </div>
+        <div class="modal-actions" style="padding-top: 14px; border-top: 1px solid var(--line);">
+          <button class="secondary-btn" onclick="window.print()">🖨 Print Ticket</button>
+          <button class="primary-btn" id="close-confirm-modal-btn">Done</button>
+        </div>
+      </div>
+    </div>
+
     <footer>
-      SMARTMUSEUM <span>·</span> Complete Full-Stack Visitor Analytics & Neo4j Graph Deployment
+      SMARTMUSEUM <span>·</span> Complete Full-Stack Visitor Analytics &amp; Neo4j Graph Deployment
     </footer>
   </main>
 

@@ -2,12 +2,15 @@
 node_modules/
 backend/node_modules/
 
-# Environment Variables
+# Environment variables (real credentials must never be committed)
 .env
 backend/.env
 *.env
+.env.*
+!.env.example
+!backend/.env.example
 
-# Operating System & Logs
+# Operating system & logs
 .DS_Store
 Thumbs.db
 npm-debug.log*
@@ -15,9 +18,20 @@ yarn-debug.log*
 yarn-error.log*
 *.log
 
-# Temp files
+# Nested duplicate copy of the project (older snapshot)
+/DBMS DA3/
+
+# Local reference material (saved Aura console page, coursework documents, screenshots)
+/Query _ Neo4j Aura.html
+/Query _ Neo4j Aura_files/
+/DA3 DBMS.docx
+/DA3 DBMS.pdf
+/visualisation.png
+
+# Temp / scratch files
 docx_extracted/
 temp_extracted/
 find_aura.cjs
 read_docx.py
 docx_text.txt
+backend/_*.mjs

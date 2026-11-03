@@ -5,6 +5,7 @@ import neo4j from 'neo4j-driver';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { randomUUID } from 'crypto';
 
 dotenv.config();
 
@@ -15,7 +16,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve static frontend assets if accessed directly
+// Serve static frontend assets
 app.use(express.static(path.join(__dirname, '../frontend')));
 app.use('/images', express.static(path.join(__dirname, '../frontend/images')));
 
@@ -40,7 +41,7 @@ function initDriver() {
   ) {
     connectionStatus = {
       connected: false,
-      message: 'Neo4j environment variables are not configured with active credentials. Please update backend/.env'
+      message: 'Neo4j environment variables are not configured. Please update backend/.env'
     };
     return null;
   }
@@ -142,7 +143,7 @@ async function autoSeedIfEmpty() {
 
 setTimeout(autoSeedIfEmpty, 1200);
 
-// API Health Check
+// ===================== API HEALTH CHECK =====================
 app.get('/api/health', async (_req, res) => {
   if (!driver) {
     return res.status(200).json({
@@ -172,7 +173,7 @@ app.get('/api/health', async (_req, res) => {
   }
 });
 
-// Seed endpoint
+// ===================== SEED ENDPOINT =====================
 app.post('/api/seed', async (_req, res) => {
   try {
     const seedFile = path.join(__dirname, 'seed.cypher');
@@ -188,7 +189,7 @@ app.post('/api/seed', async (_req, res) => {
   }
 });
 
-// 1. Dashboard Stats
+// ===================== 1. DASHBOARD STATS =====================
 app.get('/api/stats', async (_req, res) => {
   try {
     const counts = await query(`
@@ -200,7 +201,8 @@ app.get('/api/stats', async (_req, res) => {
         count { MATCH (n) WHERE n:Exhibition OR n:EXHIBITION } AS totalExhibitions,
         count { MATCH (n) WHERE n:Event OR n:EVENT } AS totalEvents,
         count { MATCH ()-[r:REGISTERED_FOR]->() } AS totalRegistrations,
-        count { MATCH (n) WHERE n:Visit OR n:VISIT } AS totalVisits
+        count { MATCH (n) WHERE n:Visit OR n:VISIT } AS totalVisits,
+        count { MATCH (n) WHERE n:Booking } AS totalBookings
     `).catch(async () => {
       const v = await query('MATCH (n) WHERE n:Visitor OR n:VISITOR RETURN count(n) AS cnt');
       const a = await query('MATCH (n) WHERE n:Artifact OR n:ARTIFACT RETURN count(n) AS cnt');
@@ -209,6 +211,7 @@ app.get('/api/stats', async (_req, res) => {
       const ev = await query('MATCH (n) WHERE n:Event OR n:EVENT RETURN count(n) AS cnt');
       const reg = await query('MATCH ()-[r:REGISTERED_FOR]->() RETURN count(r) AS cnt');
       const vis = await query('MATCH (n) WHERE n:Visit OR n:VISIT RETURN count(n) AS cnt');
+      const bk = await query('MATCH (n:Booking) RETURN count(n) AS cnt');
       return [{
         totalVisitors: v[0]?.cnt || 0,
         totalArtifacts: a[0]?.cnt || 0,
@@ -216,7 +219,8 @@ app.get('/api/stats', async (_req, res) => {
         totalExhibitions: e[0]?.cnt || 0,
         totalEvents: ev[0]?.cnt || 0,
         totalRegistrations: reg[0]?.cnt || 0,
-        totalVisits: vis[0]?.cnt || 0
+        totalVisits: vis[0]?.cnt || 0,
+        totalBookings: bk[0]?.cnt || 0
       }];
     });
 
@@ -250,7 +254,7 @@ app.get('/api/stats', async (_req, res) => {
   }
 });
 
-// 2. Visitors Management (Accommodates direct Neo4j entries)
+// ===================== 2. VISITORS =====================
 app.get('/api/visitors', async (req, res) => {
   try {
     const search = String(req.query.search || '').trim();
@@ -295,7 +299,6 @@ app.get('/api/visitors', async (req, res) => {
   }
 });
 
-// Single visitor profile & journey details
 app.get('/api/visitors/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -339,16 +342,12 @@ app.get('/api/visitors/:id', async (req, res) => {
       ORDER BY date DESC
     `, { id });
 
-    res.json({
-      profile: profile[0],
-      journey
-    });
+    res.json({ profile: profile[0], journey });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Create visitor
 app.post('/api/visitors', async (req, res) => {
   try {
     const { name, email, phone, gender, visitorType = 'General' } = req.body;
@@ -376,7 +375,26 @@ app.post('/api/visitors', async (req, res) => {
   }
 });
 
-// 3. Artifacts Management
+// ===================== 3. ARTIFACTS =====================
+// GET distinct categories from actual DB classifications
+app.get('/api/artifact-categories', async (_req, res) => {
+  try {
+    const rows = await query(`
+      MATCH (a)-[:CLASSIFIED_AS]->(t)
+      WHERE (a:Artifact OR a:ARTIFACT)
+        AND (t:ARTIFACT_TYPE OR t:ArtifactType OR t:Type)
+        AND t.Type_Name IS NOT NULL
+        AND trim(t.Type_Name) <> ''
+      RETURN DISTINCT trim(t.Type_Name) AS category
+      ORDER BY category ASC
+    `);
+    const categories = rows.map(r => r.category).filter(Boolean);
+    res.json({ categories });
+  } catch (err) {
+    res.status(500).json({ error: err.message, categories: [] });
+  }
+});
+
 app.get('/api/artifacts', async (req, res) => {
   try {
     const search = String(req.query.search || '').trim();
@@ -389,31 +407,38 @@ app.get('/api/artifacts', async (req, res) => {
       OPTIONAL MATCH (a)-[:CLASSIFIED_AS]->(t)
       WITH a,
            collect(DISTINCT g.Gallery_Name) AS galleryNames,
-           collect(DISTINCT coalesce(t.Type_Name, a.Category)) AS typeNames,
+           collect(DISTINCT trim(coalesce(t.Type_Name, ''))) AS rawTypes,
            $search AS search,
            $category AS category
+      WITH a, galleryNames,
+           [tn IN rawTypes WHERE tn <> ''] AS typeNames,
+           search, category
+      WITH a, galleryNames, typeNames,
+           coalesce(head(typeNames), a.Category, 'Historical Artifact') AS primaryCategory,
+           search, category
       WHERE (
         search = ''
-        OR toLower(coalesce(a.Title, '')) CONTAINS toLower(search)
+        OR toLower(coalesce(a.Title, a.name, '')) CONTAINS toLower(search)
         OR toLower(coalesce(a.Origin, '')) CONTAINS toLower(search)
-        OR toLower(coalesce(a.Period, '')) CONTAINS toLower(search)
-        OR toLower(coalesce(a.Historical_Information, '')) CONTAINS toLower(search)
+        OR toLower(coalesce(a.Period, a.period, '')) CONTAINS toLower(search)
+        OR toLower(coalesce(a.Historical_Information, a.Description, '')) CONTAINS toLower(search)
         OR any(tn IN typeNames WHERE toLower(tn) CONTAINS toLower(search))
       )
       AND (
         category = ''
         OR category = 'All'
-        OR toLower(coalesce(a.Category, '')) = toLower(category)
         OR any(tn IN typeNames WHERE toLower(tn) = toLower(category))
+        OR toLower(coalesce(a.Category, '')) = toLower(category)
       )
-      RETURN coalesce(a.Artifact_ID, toString(id(a))) AS id,
-             a.Title AS title,
-             coalesce(a.Category, head(typeNames), 'Historical Artifacts') AS category,
-             a.Description AS description,
+      RETURN coalesce(a.Artifact_ID, a.artifactId, toString(id(a))) AS id,
+             coalesce(a.Title, a.name, 'Unnamed Artifact') AS title,
+             primaryCategory AS category,
+             typeNames AS allCategories,
+             coalesce(a.Description, a.Historical_Information, '') AS description,
              a.Historical_Information AS historicalDetails,
-             a.Origin AS origin,
-             a.Period AS period,
-             a.Current_Status AS status,
+             coalesce(a.Origin, '') AS origin,
+             coalesce(a.Period, a.period, '') AS period,
+             coalesce(a.Current_Status, 'On Display') AS status,
              a.Acquisition_Date AS acquisitionDate,
              head(galleryNames) AS gallery,
              galleryNames AS galleries
@@ -426,7 +451,7 @@ app.get('/api/artifacts', async (req, res) => {
   }
 });
 
-// 4. Galleries Management
+// ===================== 4. GALLERIES =====================
 app.get('/api/galleries', async (_req, res) => {
   try {
     const rows = await query(`
@@ -435,7 +460,7 @@ app.get('/api/galleries', async (_req, res) => {
       OPTIONAL MATCH (g)-[:CONTAINS|CONTAINS_ARTIFACT]->(a)
       OPTIONAL MATCH (vis)-[:VISITED|INCLUDED|VISITED_GALLERY]->(g)
       WITH g,
-           collect(DISTINCT { id: a.Artifact_ID, title: a.Title, category: a.Category }) AS artifactsList,
+           collect(DISTINCT { id: coalesce(a.Artifact_ID,''), title: coalesce(a.Title,a.name,''), category: coalesce(a.Category,'') }) AS artifactsList,
            count(DISTINCT a) AS artifactCount,
            count(DISTINCT vis) AS visitorActivityCount
       RETURN coalesce(g.Gallery_ID, toString(id(g))) AS id,
@@ -455,7 +480,7 @@ app.get('/api/galleries', async (_req, res) => {
   }
 });
 
-// 5. Exhibitions Management
+// ===================== 5. EXHIBITIONS =====================
 app.get('/api/exhibitions', async (_req, res) => {
   try {
     const rows = await query(`
@@ -470,6 +495,7 @@ app.get('/api/exhibitions', async (_req, res) => {
              e.End_Date AS endDate,
              e.Description AS description,
              e.Venue AS venue,
+             coalesce(e.Capacity, 100) AS capacity,
              size(artifactDetails) AS artifactCount,
              artifactDetails AS artifacts
       ORDER BY startDate DESC
@@ -480,7 +506,7 @@ app.get('/api/exhibitions', async (_req, res) => {
   }
 });
 
-// 6. Events Management
+// ===================== 6. EVENTS =====================
 app.get('/api/events', async (_req, res) => {
   try {
     const rows = await query(`
@@ -497,7 +523,7 @@ app.get('/api/events', async (_req, res) => {
              e.End_Time AS endTime,
              e.Venue AS venue,
              e.Description AS description,
-             e.Capacity AS capacity,
+             coalesce(e.Capacity, 50) AS capacity,
              registrationCount,
              attendees
       ORDER BY date ASC
@@ -508,7 +534,7 @@ app.get('/api/events', async (_req, res) => {
   }
 });
 
-// 7. Analytics Data
+// ===================== 7. ANALYTICS =====================
 app.get('/api/analytics', async (_req, res) => {
   try {
     const visitorTrends = await query(`
@@ -534,89 +560,373 @@ app.get('/api/analytics', async (_req, res) => {
       ORDER BY count DESC
     `);
 
+    // Use actual CLASSIFIED_AS relationships for correct category counts
     const artifactCategories = await query(`
-      MATCH (a)
-      WHERE a:Artifact OR a:ARTIFACT
-      OPTIONAL MATCH (a)-[:CLASSIFIED_AS]->(t)
-      WITH coalesce(a.Category, t.Type_Name, 'Historical Artifacts') AS cat
-      RETURN cat AS category, count(*) AS count
+      MATCH (a)-[:CLASSIFIED_AS]->(t)
+      WHERE (a:Artifact OR a:ARTIFACT)
+        AND (t:ARTIFACT_TYPE OR t:ArtifactType OR t:Type)
+        AND t.Type_Name IS NOT NULL
+      RETURN trim(t.Type_Name) AS category, count(DISTINCT a) AS count
       ORDER BY count DESC
     `);
+
+    // Booking stats
+    const bookingStats = await query(`
+      MATCH (b:Booking)
+      RETURN b.Item_Type AS itemType, count(b) AS count, sum(b.Total_Amount) AS revenue
+      ORDER BY count DESC
+    `).catch(() => []);
 
     res.json({
       visitorTrends,
       galleryVisits,
       preferences,
-      artifactCategories
+      artifactCategories,
+      bookingStats
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 8. Graph Explorer
+// ===================== 8. GRAPH EXPLORER =====================
 app.get('/api/graph', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit || '140', 10);
+    const filter = String(req.query.filter || '').toUpperCase();
+
+    const allowedTypes = ['VISITOR', 'VISIT', 'GALLERY', 'ARTIFACT', 'EXHIBITION', 'EVENT', 'FEEDBACK', 'STAFF', 'CONSERVATION'];
+    // Types the user explicitly selected (empty = "All Nodes" view)
+    const selectedTypes = filter && filter !== 'ALL'
+      ? filter.split(',').map(f => f.trim()).filter(f => allowedTypes.includes(f))
+      : [];
+    const filtered = selectedTypes.length > 0;
+    const filterTypes = allowedTypes; // neighbours may be of any supported museum type
+
+    // All Nodes: both endpoints must be supported types.
+    // Filtered: at least ONE endpoint must be a selected type; the other end is its neighbour.
     const graphData = await query(`
       MATCH (a)-[r]->(b)
-      WHERE any(l IN labels(a) WHERE toUpper(l) IN ['VISITOR', 'VISIT', 'GALLERY', 'ARTIFACT', 'EXHIBITION', 'EVENT', 'FEEDBACK', 'STAFF', 'CONSERVATION'])
-        AND any(l IN labels(b) WHERE toUpper(l) IN ['VISITOR', 'VISIT', 'GALLERY', 'ARTIFACT', 'EXHIBITION', 'EVENT', 'FEEDBACK', 'STAFF', 'CONSERVATION'])
+      WHERE (
+          NOT $filtered
+          AND any(l IN labels(a) WHERE toUpper(l) IN $filterTypes)
+          AND any(l IN labels(b) WHERE toUpper(l) IN $filterTypes)
+        )
+        OR (
+          $filtered
+          AND (
+            any(l IN labels(a) WHERE toUpper(l) IN $selectedTypes)
+            OR any(l IN labels(b) WHERE toUpper(l) IN $selectedTypes)
+          )
+        )
       RETURN DISTINCT
         id(a) AS sourceId,
         labels(a)[0] AS sourceLabel,
-        coalesce(a.Name, a.Title, a.Gallery_Name, a.Exhibition_Name, a.Event_Name, a.Visit_ID, 'Node') AS sourceName,
-        coalesce(a.Visitor_ID, a.Artifact_ID, a.Gallery_ID, a.Exhibition_ID, a.Event_ID, a.Visit_ID, toString(id(a))) AS sourceCode,
+        coalesce(a.Name, a.Title, a.Gallery_Name, a.Exhibition_Name, a.Event_Name, a.name, a.Visit_ID, labels(a)[0]) AS sourceName,
+        coalesce(a.Visitor_ID, a.Artifact_ID, a.Gallery_ID, a.Exhibition_ID, a.Event_ID, a.Visit_ID, a.artifactId, toString(id(a))) AS sourceCode,
         type(r) AS relType,
         id(b) AS targetId,
         labels(b)[0] AS targetLabel,
-        coalesce(b.Name, b.Title, b.Gallery_Name, b.Exhibition_Name, b.Event_Name, b.Visit_ID, 'Node') AS targetName,
-        coalesce(b.Visitor_ID, b.Artifact_ID, b.Gallery_ID, b.Exhibition_ID, b.Event_ID, b.Visit_ID, toString(id(b))) AS targetCode
+        coalesce(b.Name, b.Title, b.Gallery_Name, b.Exhibition_Name, b.Event_Name, b.name, b.Visit_ID, labels(b)[0]) AS targetName,
+        coalesce(b.Visitor_ID, b.Artifact_ID, b.Gallery_ID, b.Exhibition_ID, b.Event_ID, b.Visit_ID, b.artifactId, toString(id(b))) AS targetCode
       LIMIT $limit
-    `, { limit });
+    `, {
+      filterTypes,
+      selectedTypes,
+      filtered,
+      limit: neo4j.int(Number.isFinite(limit) ? limit : 140)
+    });
 
     const nodesMap = new Map();
     const links = [];
 
-    for (const row of graphData) {
-      if (!nodesMap.has(row.sourceId)) {
-        nodesMap.set(row.sourceId, {
-          id: String(row.sourceId),
-          code: row.sourceCode,
-          label: row.sourceName,
-          type: String(row.sourceLabel).toUpperCase()
+    // In filtered mode, also include selected-type nodes that have no relationships
+    if (filtered) {
+      const selectedNodes = await query(`
+        MATCH (n)
+        WHERE any(l IN labels(n) WHERE toUpper(l) IN $selectedTypes)
+        RETURN id(n) AS nodeId,
+               labels(n)[0] AS nodeLabel,
+               coalesce(n.Name, n.Title, n.Gallery_Name, n.Exhibition_Name, n.Event_Name, n.name, n.Visit_ID, 'Node') AS nodeName,
+               coalesce(n.Visitor_ID, n.Artifact_ID, n.Gallery_ID, n.Exhibition_ID, n.Event_ID, n.Visit_ID, n.artifactId, toString(id(n))) AS nodeCode
+        LIMIT $limit
+      `, { selectedTypes, limit: neo4j.int(Number.isFinite(limit) ? limit : 140) });
+      for (const row of selectedNodes) {
+        nodesMap.set(String(row.nodeId), {
+          id: String(row.nodeId),
+          code: row.nodeCode,
+          label: row.nodeName || String(row.nodeId),
+          type: String(row.nodeLabel || 'NODE').toUpperCase()
         });
       }
-      if (!nodesMap.has(row.targetId)) {
-        nodesMap.set(row.targetId, {
-          id: String(row.targetId),
+    }
+
+    for (const row of graphData) {
+      const sId = String(row.sourceId);
+      const tId = String(row.targetId);
+
+      if (!nodesMap.has(sId)) {
+        nodesMap.set(sId, {
+          id: sId,
+          code: row.sourceCode,
+          label: row.sourceName || sId,
+          type: String(row.sourceLabel || 'NODE').toUpperCase()
+        });
+      }
+      if (!nodesMap.has(tId)) {
+        nodesMap.set(tId, {
+          id: tId,
           code: row.targetCode,
-          label: row.targetName,
-          type: String(row.targetLabel).toUpperCase()
+          label: row.targetName || tId,
+          type: String(row.targetLabel || 'NODE').toUpperCase()
         });
       }
       links.push({
-        source: String(row.sourceId),
-        target: String(row.targetId),
+        source: sId,
+        target: tId,
         type: row.relType
       });
     }
 
+    // Flag nodes belonging to the selected type(s) so the UI can highlight them.
+    // A dual-labelled node (e.g. Visitor:VISITOR) is matched via its uppercased primary label.
+    const nodes = Array.from(nodesMap.values()).map(n => ({
+      ...n,
+      selected: filtered && selectedTypes.includes(n.type)
+    }));
+
     res.json({
-      nodes: Array.from(nodesMap.values()),
-      links
+      nodes,
+      links,
+      filter: filtered ? selectedTypes : 'ALL',
+      totalNodes: nodes.length,
+      totalLinks: links.length
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Fallback to index.html for client-side routing
+// ===================== 9. TICKET BOOKING SYSTEM =====================
+
+// Pricing configuration
+const TICKET_PRICES = {
+  EVENT: { Standard: 200, VIP: 500, Student: 100, Child: 75 },
+  EXHIBITION: { Adult: 150, Student: 75, Child: 50, Family: 350 },
+  GALLERY: { 'Access Pass': 100, Student: 60, Child: 40 },
+  ARTIFACT: { 'Viewing Pass': 50, Student: 30, Guided: 120 }
+};
+
+// GET ticket types (pricing info) for a given item type
+app.get('/api/ticket-types', async (req, res) => {
+  try {
+    const itemType = String(req.query.itemType || 'EVENT').toUpperCase();
+    const prices = TICKET_PRICES[itemType] || TICKET_PRICES.EVENT;
+    const ticketTypes = Object.entries(prices).map(([type, price]) => ({ type, price }));
+    res.json({ ticketTypes, currency: 'INR' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET all bookings
+app.get('/api/bookings', async (req, res) => {
+  try {
+    const search = String(req.query.search || '').trim();
+    const status = String(req.query.status || '').trim();
+    const itemType = String(req.query.itemType || '').trim().toUpperCase();
+
+    const rows = await query(`
+      MATCH (b:Booking)
+      WHERE ($search = '' OR
+             toLower(coalesce(b.Visitor_Name, '')) CONTAINS toLower($search) OR
+             toLower(coalesce(b.Booking_ID, '')) CONTAINS toLower($search) OR
+             toLower(coalesce(b.Item_Name, '')) CONTAINS toLower($search) OR
+             toLower(coalesce(b.Visitor_Email, '')) CONTAINS toLower($search))
+        AND ($status = '' OR b.Status = $status)
+        AND ($itemType = '' OR b.Item_Type = $itemType)
+      RETURN b.Booking_ID AS bookingId,
+             b.Visitor_Name AS visitorName,
+             b.Visitor_Email AS visitorEmail,
+             b.Item_ID AS itemId,
+             b.Item_Type AS itemType,
+             b.Item_Name AS itemName,
+             b.Ticket_Type AS ticketType,
+             b.Quantity AS quantity,
+             b.Unit_Price AS unitPrice,
+             b.Total_Amount AS totalAmount,
+             b.Booking_Date AS bookingDate,
+             b.Status AS status
+      ORDER BY b.Booking_Date DESC
+      LIMIT 200
+    `, { search, status, itemType });
+
+    // Summary stats
+    const stats = await query(`
+      MATCH (b:Booking)
+      RETURN count(b) AS total,
+             sum(b.Total_Amount) AS totalRevenue,
+             count(CASE WHEN b.Status = 'CONFIRMED' THEN 1 END) AS confirmed,
+             count(CASE WHEN b.Status = 'CANCELLED' THEN 1 END) AS cancelled
+    `).catch(() => [{ total: 0, totalRevenue: 0, confirmed: 0, cancelled: 0 }]);
+
+    res.json({ bookings: rows, stats: stats[0] || {} });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET single booking
+app.get('/api/bookings/:bookingId', async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const rows = await query(`
+      MATCH (b:Booking {Booking_ID: $bookingId})
+      RETURN b.Booking_ID AS bookingId,
+             b.Visitor_Name AS visitorName,
+             b.Visitor_Email AS visitorEmail,
+             b.Item_ID AS itemId,
+             b.Item_Type AS itemType,
+             b.Item_Name AS itemName,
+             b.Ticket_Type AS ticketType,
+             b.Quantity AS quantity,
+             b.Unit_Price AS unitPrice,
+             b.Total_Amount AS totalAmount,
+             b.Booking_Date AS bookingDate,
+             b.Status AS status
+    `, { bookingId });
+
+    if (!rows.length) return res.status(404).json({ error: 'Booking not found' });
+    res.json({ booking: rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST create booking
+app.post('/api/bookings', async (req, res) => {
+  try {
+    const {
+      visitorName,
+      visitorEmail,
+      itemId,
+      itemType,
+      itemName,
+      ticketType,
+      quantity = 1
+    } = req.body;
+
+    if (!visitorName || !visitorName.trim()) return res.status(400).json({ error: 'Visitor name is required' });
+    if (!itemId) return res.status(400).json({ error: 'Item ID is required' });
+    if (!itemType) return res.status(400).json({ error: 'Item type is required' });
+    if (!ticketType) return res.status(400).json({ error: 'Ticket type is required' });
+
+    const qty = Math.max(1, Math.min(10, parseInt(quantity, 10) || 1));
+    const upperType = String(itemType).toUpperCase();
+    const prices = TICKET_PRICES[upperType] || TICKET_PRICES.EVENT;
+    const unitPrice = prices[ticketType];
+    if (!unitPrice) return res.status(400).json({ error: `Invalid ticket type "${ticketType}" for ${upperType}` });
+
+    // Capacity check for events
+    if (upperType === 'EVENT') {
+      const capCheck = await query(`
+        MATCH (e)
+        WHERE (e:Event OR e:EVENT) AND (e.Event_ID = $itemId OR toString(id(e)) = $itemId)
+        OPTIONAL MATCH (b:Booking {Item_ID: $itemId, Status: 'CONFIRMED'})
+        WITH coalesce(e.Capacity, 50) AS cap,
+             sum(coalesce(b.Quantity, 0)) AS booked
+        RETURN (cap - booked) AS remaining
+      `, { itemId });
+      const remaining = capCheck[0]?.remaining ?? 50;
+      if (remaining < qty) {
+        return res.status(409).json({ error: `Only ${remaining} seats remaining for this event` });
+      }
+    }
+
+    const bookingId = `BK-${Date.now()}-${randomUUID().slice(0, 6).toUpperCase()}`;
+    const totalAmount = unitPrice * qty;
+    const bookingDate = new Date().toISOString();
+
+    await query(`
+      CREATE (b:Booking {
+        Booking_ID: $bookingId,
+        Visitor_Name: $visitorName,
+        Visitor_Email: $visitorEmail,
+        Item_ID: $itemId,
+        Item_Type: $upperType,
+        Item_Name: $itemName,
+        Ticket_Type: $ticketType,
+        Quantity: $qty,
+        Unit_Price: $unitPrice,
+        Total_Amount: $totalAmount,
+        Booking_Date: $bookingDate,
+        Status: 'CONFIRMED'
+      })
+    `, {
+      bookingId,
+      visitorName: visitorName.trim(),
+      visitorEmail: visitorEmail || '',
+      itemId,
+      upperType,
+      itemName: itemName || '',
+      ticketType,
+      qty,
+      unitPrice,
+      totalAmount,
+      bookingDate
+    });
+
+    res.status(201).json({
+      success: true,
+      booking: {
+        bookingId,
+        visitorName: visitorName.trim(),
+        visitorEmail: visitorEmail || '',
+        itemId,
+        itemType: upperType,
+        itemName: itemName || '',
+        ticketType,
+        quantity: qty,
+        unitPrice,
+        totalAmount,
+        bookingDate,
+        status: 'CONFIRMED'
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE (cancel) booking
+app.delete('/api/bookings/:bookingId', async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const check = await query(`
+      MATCH (b:Booking {Booking_ID: $bookingId})
+      RETURN b.Status AS status
+    `, { bookingId });
+
+    if (!check.length) return res.status(404).json({ error: 'Booking not found' });
+    if (check[0].status === 'CANCELLED') return res.status(400).json({ error: 'Booking is already cancelled' });
+
+    await query(`
+      MATCH (b:Booking {Booking_ID: $bookingId})
+      SET b.Status = 'CANCELLED'
+    `, { bookingId });
+
+    res.json({ success: true, message: 'Booking cancelled successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== FALLBACK =====================
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
-app.listen(Number(PORT), () => {
+app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`=========================================`);
   console.log(` SmartMuseum API & Frontend live on port ${PORT}`);
   console.log(` Neo4j Status: ${driver ? 'Configured' : 'Awaiting credentials'}`);

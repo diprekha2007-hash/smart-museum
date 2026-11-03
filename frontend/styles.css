@@ -30,7 +30,7 @@ body {
 
 button, input, select { font: inherit; }
 
-/* SIDEBAR */
+/* ======================== SIDEBAR ======================== */
 .sidebar {
   width: 255px;
   background: #fff;
@@ -41,12 +41,13 @@ button, input, select { font: inherit; }
   position: fixed;
   inset: 0 auto 0 0;
   z-index: 10;
+  overflow-y: auto;
 }
 .brand {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 10px 30px;
+  padding: 0 10px 24px;
 }
 .brand-mark {
   display: grid;
@@ -60,6 +61,7 @@ button, input, select { font: inherit; }
   font-size: 26px;
   font-weight: 700;
   box-shadow: 0 4px 10px rgba(36, 65, 48, 0.2);
+  flex-shrink: 0;
 }
 .brand strong {
   display: block;
@@ -75,19 +77,19 @@ button, input, select { font: inherit; }
 }
 .sidebar nav {
   display: grid;
-  gap: 5px;
+  gap: 4px;
 }
 .nav-link {
   border: 0;
   background: transparent;
   color: #647366;
   text-align: left;
-  padding: 11px 14px;
+  padding: 10px 14px;
   border-radius: 9px;
   display: flex;
   gap: 12px;
   align-items: center;
-  font: 500 14px 'DM Sans', sans-serif;
+  font: 500 13.5px 'DM Sans', sans-serif;
   cursor: pointer;
   transition: all 0.18s ease;
 }
@@ -112,6 +114,7 @@ button, input, select { font: inherit; }
   gap: 10px;
   align-items: flex-start;
   background: #fafaf7;
+  margin-top: 16px;
 }
 .sidebar-note b, .sidebar-note small { display: block; font-size: 11px; }
 .sidebar-note small { color: var(--muted); margin-top: 3px; }
@@ -128,7 +131,7 @@ button, input, select { font: inherit; }
 .dot.connected, .top-status.is-connected .dot { background: #3fae49; box-shadow: 0 0 8px rgba(63, 174, 73, 0.4); }
 .dot.error, .top-status.is-error .dot { background: #dc3545; }
 
-/* MAIN CONTENT */
+/* ======================== MAIN CONTENT ======================== */
 .main {
   margin-left: 255px;
   width: calc(100% - 255px);
@@ -188,7 +191,7 @@ button, input, select { font: inherit; }
 .connection-alert p { margin: 4px 0 0; color: #6b5522; font-size: 12px; line-height: 1.5; }
 .connection-alert code { background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px; font-weight: 600; }
 
-/* HERO */
+/* ======================== HERO ======================== */
 .hero {
   min-height: 250px;
   background: linear-gradient(135deg, #1f3b2b 0%, #294c37 100%);
@@ -244,6 +247,11 @@ button, input, select { font: inherit; }
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
+.primary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
 .hero-outline-btn {
   border: 1px solid rgba(255,255,255,0.4);
   background: transparent;
@@ -277,8 +285,51 @@ button, input, select { font: inherit; }
   background: var(--pale);
   border-color: #cbd8c8;
 }
+.danger-btn {
+  border: 1px solid #f2c1c1;
+  background: #fff5f5;
+  color: var(--danger);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.danger-btn:hover {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+}
+.book-btn {
+  border: 1px solid var(--green);
+  background: var(--pale);
+  color: var(--green-dark);
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  width: 100%;
+}
+.book-btn:hover {
+  background: var(--green);
+  color: #fff;
+  border-color: var(--green);
+}
+.text-btn {
+  background: transparent;
+  border: 0;
+  color: var(--green);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+}
+.text-btn:hover { text-decoration: underline; }
 
-/* HEADINGS & GRIDS */
+/* ======================== HEADINGS & GRIDS ======================== */
 .section-heading {
   display: flex;
   align-items: flex-end;
@@ -292,7 +343,7 @@ button, input, select { font: inherit; }
 }
 .subtle, .muted { color: var(--muted); font-size: 12px; line-height: 1.6; }
 
-/* STATS */
+/* ======================== STATS ======================== */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -326,7 +377,7 @@ button, input, select { font: inherit; }
   color: #8c9c8e;
 }
 
-/* DASHBOARD CHARTS */
+/* ======================== DASHBOARD CHARTS ======================== */
 .dashboard-charts-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -363,7 +414,7 @@ button, input, select { font: inherit; }
   height: 300px;
 }
 
-/* CARDS & TILES */
+/* ======================== CARDS & TILES ======================== */
 .artifact-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -451,7 +502,6 @@ button, input, select { font: inherit; }
   color: var(--muted);
   line-height: 1.6;
   margin: 0;
-  flex: 1;
 }
 .metadata-row {
   display: flex;
@@ -470,7 +520,7 @@ button, input, select { font: inherit; }
   border-radius: 4px;
 }
 
-/* SEARCH & FILTERS */
+/* ======================== SEARCH & FILTERS ======================== */
 .toolbar-wrap {
   display: flex;
   gap: 14px;
@@ -535,7 +585,7 @@ button, input, select { font: inherit; }
   border-color: var(--green-dark);
 }
 
-/* VISITOR TABLE & PROFILE */
+/* ======================== VISITOR TABLE & PROFILE ======================== */
 .visitors-layout {
   display: grid;
   grid-template-columns: 1fr;
@@ -575,6 +625,9 @@ button, input, select { font: inherit; }
 }
 .data-table tbody tr:hover {
   background: #fbfdf9;
+}
+.row-cancelled {
+  opacity: 0.55;
 }
 .profile-panel {
   background: #fff;
@@ -633,7 +686,7 @@ button, input, select { font: inherit; }
   font-size: 12px;
 }
 
-/* GRAPH EXPLORER */
+/* ======================== GRAPH EXPLORER ======================== */
 .explorer-controls {
   display: flex;
   gap: 10px;
@@ -655,9 +708,32 @@ button, input, select { font: inherit; }
 .chip-event { color: #dd6b20; }
 .chip-visit { color: #718096; }
 
+.graph-filter-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.graph-filter-btn {
+  background: #fff;
+  border: 1px solid var(--line);
+  color: #637365;
+  padding: 6px 13px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.graph-filter-btn.active, .graph-filter-btn:hover {
+  background: var(--green-dark);
+  color: #fff;
+  border-color: var(--green-dark);
+}
+
 .graph-explorer-container {
   width: 100%;
-  height: 640px;
+  height: 620px;
   background: #ffffff;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -668,6 +744,7 @@ button, input, select { font: inherit; }
 #graph-svg {
   width: 100%;
   height: 100%;
+  display: block;
 }
 .graph-tooltip {
   position: absolute;
@@ -679,11 +756,242 @@ button, input, select { font: inherit; }
   pointer-events: none;
   box-shadow: 0 6px 16px rgba(0,0,0,0.2);
   z-index: 100;
-  max-width: 250px;
+  max-width: 240px;
   backdrop-filter: blur(4px);
 }
+.graph-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.92);
+  z-index: 50;
+  gap: 12px;
+}
+.graph-loading-overlay p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+.graph-loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--line);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.graph-info-bar {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(36,65,48,0.85);
+  color: #c9d9c6;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 11px;
+  pointer-events: none;
+}
 
-/* MODAL */
+/* ======================== TICKET COUNTER ======================== */
+.pricing-banner {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
+}
+.pricing-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.pricing-item {
+  background: var(--gold-light);
+  border: 1px solid #e8d19a;
+  border-radius: 8px;
+  padding: 8px 14px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 12.5px;
+}
+.pricing-item span { color: #7f5819; font-weight: 600; }
+.pricing-item strong { color: var(--green-dark); font-size: 14px; }
+
+/* ======================== BOOKINGS PAGE ======================== */
+.booking-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.bk-stat-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
+.bk-stat-card span {
+  display: block;
+  font-size: 10.5px;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+.bk-stat-card strong {
+  font: 700 22px 'Playfair Display', serif;
+  color: var(--green-dark);
+}
+
+/* Booking status badges */
+.booking-status-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.booking-status-confirmed { background: #e6f4ea; color: #2e7d32; }
+.booking-status-cancelled { background: #fdecea; color: #c62828; }
+
+/* ======================== BOOKING MODAL ======================== */
+.booking-item-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  background: #f9fbf8;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.booking-item-image {
+  flex-shrink: 0;
+}
+
+/* Quantity control */
+.qty-control {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  height: 40px;
+}
+.qty-btn {
+  border: 0;
+  background: #f4f6f1;
+  color: var(--ink);
+  width: 36px;
+  height: 100%;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.qty-btn:hover { background: var(--pale); }
+.qty-display {
+  flex: 1;
+  text-align: center;
+  font-weight: 700;
+  font-size: 16px;
+  min-width: 36px;
+}
+
+/* Total price row */
+.booking-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f0f6ed;
+  border: 1px solid #cde0c8;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-top: 6px;
+}
+.booking-total-row span { font-weight: 600; font-size: 14px; }
+.booking-total-amount {
+  font: 700 22px 'Playfair Display', serif;
+  color: var(--green-dark);
+}
+
+/* ======================== TICKET CONFIRMATION ======================== */
+.ticket-confirm-card {
+  max-width: 560px;
+  width: 95%;
+}
+.ticket-confirm-header {
+  text-align: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+.ticket-confirm-check {
+  width: 56px;
+  height: 56px;
+  background: #e6f4ea;
+  color: #2e7d32;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0 auto 12px;
+}
+.ticket-confirm-header h3 {
+  margin: 0 0 4px;
+  font: 700 22px 'Playfair Display', serif;
+  color: var(--green-dark);
+}
+.ticket-confirm-body {
+  padding: 4px 0 8px;
+}
+.ticket-confirm-detail-row {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+.ticket-field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid #f0f2eb;
+  gap: 10px;
+}
+.ticket-field label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.ticket-field span, .ticket-field strong {
+  font-size: 13.5px;
+}
+.ticket-bid {
+  font-family: monospace;
+  font-size: 11px !important;
+  background: #f4f6f1;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.ticket-qr-wrap {
+  flex-shrink: 0;
+  text-align: center;
+}
+
+/* ======================== MODAL ======================== */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -700,6 +1008,8 @@ button, input, select { font: inherit; }
   border-radius: 14px;
   padding: 24px;
   box-shadow: var(--shadow-lg);
+  max-height: 90vh;
+  overflow-y: auto;
 }
 .modal-header {
   display: flex;
@@ -746,7 +1056,7 @@ button, input, select { font: inherit; }
   border-top: 1px solid var(--line);
 }
 
-/* UTILITIES */
+/* ======================== UTILITIES ======================== */
 .loading-state, .empty-state {
   grid-column: 1 / -1;
   background: #fff;
@@ -770,6 +1080,7 @@ button, input, select { font: inherit; }
   box-shadow: var(--shadow-lg);
   z-index: 200;
   transition: opacity 0.3s;
+  max-width: 320px;
 }
 footer {
   font-size: 10px;
@@ -780,10 +1091,29 @@ footer {
   text-align: center;
 }
 
-/* RESPONSIVE */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ======================== ANALYTICS GRID ======================== */
+.analytics-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+/* ======================== PRINT STYLES ======================== */
+@media print {
+  .sidebar, .topbar, nav, .modal-actions, .secondary-btn, .toast, footer { display: none !important; }
+  .main { margin: 0; width: 100%; padding: 20px; }
+  .ticket-confirm-card { box-shadow: none; border: 1px solid #ccc; }
+}
+
+/* ======================== RESPONSIVE ======================== */
 @media (max-width: 1200px) {
   .stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .artifact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .booking-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
   .sidebar { width: 70px; padding: 18px 8px; }
@@ -791,4 +1121,8 @@ footer {
   .main { margin-left: 70px; width: calc(100% - 70px); }
   .tile-grid, .dashboard-charts-grid, .analytics-charts-grid { grid-template-columns: 1fr; }
   .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .artifact-grid { grid-template-columns: 1fr; }
+  .form-row { grid-template-columns: 1fr; }
+  .ticket-confirm-detail-row { flex-direction: column; }
+  .booking-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

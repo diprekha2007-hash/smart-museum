@@ -3,15 +3,15 @@
 // SmartMuseum Complete Full-Stack Frontend Controller
 // Connects to Node.js backend which interfaces with Neo4j AuraDB
 
-// Dynamic API URL: Automatically points to same origin in production (Render) or localhost:3001 in local dev
-const API = window.location.origin.includes(':3001') || window.location.origin.includes('onrender.com') || window.location.pathname.startsWith('/api')
+const API = window.location.origin.includes(':3001') || window.location.origin.includes('onrender.com')
   ? `${window.location.origin}/api`
   : (window.location.port === '3000' || window.location.port === '5500' || window.location.protocol === 'file:')
     ? 'http://localhost:3001/api'
     : '/api';
+
 const $ = (id) => document.getElementById(id);
 
-// Stable local image reference manifest
+// ==================== IMAGE MANIFEST ====================
 const IMAGE_MANIFEST = {
   artifacts: {
     A001: 'images/artifacts/artifact_A001.jpg',
@@ -59,6 +59,7 @@ const IMAGE_MANIFEST = {
   }
 };
 
+// ==================== STATE ====================
 const state = {
   activePage: 'overview',
   stats: null,
@@ -71,21 +72,38 @@ const state = {
   graphData: null,
   selectedCategory: 'All',
   searchQuery: '',
-  charts: {}
+  charts: {},
+  bookings: [],
+  ticketActiveType: 'EVENT',
+  bookingModalData: { quantity: 1, unitPrice: 0, ticketPrices: {} },
+  searchTimer: null
 };
 
-// Utilities
+// ==================== UTILITIES ====================
 function safe(v) {
   return String(v ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   })[c]);
 }
 
-function showToast(msg, duration = 3000) {
+function showToast(msg, duration = 3500) {
   const toast = $('toast');
   toast.textContent = msg;
   toast.classList.remove('hidden');
   setTimeout(() => toast.classList.add('hidden'), duration);
+}
+
+function formatCurrency(amount) {
+  return `₹${Number(amount || 0).toLocaleString('en-IN')}`;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return 'N/A';
+  try {
+    return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return dateStr;
+  }
 }
 
 function getRecordId(item, defaultPrefix = '') {
@@ -113,7 +131,7 @@ function buildImageTag(item, category, title) {
   `;
 }
 
-// ================= API FETCHERS =================
+// ==================== API FETCHERS ====================
 async function apiGet(endpoint) {
   try {
     const res = await fetch(`${API}${endpoint}`);
@@ -125,7 +143,35 @@ async function apiGet(endpoint) {
   }
 }
 
-// 1. Connection Health Check
+async function apiPost(endpoint, body) {
+  try {
+    const res = await fetch(`${API}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  } catch (err) {
+    console.error(`API POST Error [${endpoint}]:`, err);
+    throw err;
+  }
+}
+
+async function apiDelete(endpoint) {
+  try {
+    const res = await fetch(`${API}${endpoint}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  } catch (err) {
+    console.error(`API DELETE Error [${endpoint}]:`, err);
+    throw err;
+  }
+}
+
+// ==================== 1. CONNECTION HEALTH ====================
 async function checkHealth() {
   const data = await apiGet('/health');
   const label = $('connection-label');
@@ -149,7 +195,7 @@ async function checkHealth() {
   }
 }
 
-// 2. Load Dashboard Overview
+// ==================== 2. DASHBOARD OVERVIEW ====================
 async function loadOverview() {
   const data = await apiGet('/stats');
   if (!data) return;
@@ -161,9 +207,8 @@ async function loadOverview() {
   $('stat-galleries').textContent = s.totalGalleries ?? '—';
   $('stat-exhibitions').textContent = s.totalExhibitions ?? '—';
   $('stat-events').textContent = s.totalEvents ?? '—';
-  $('stat-registrations').textContent = s.totalRegistrations ?? '—';
+  $('stat-bookings').textContent = s.totalBookings ?? '0';
 
-  // Render Dashboard Mini Charts
   renderDashboardCharts(data.popularGalleries || [], data.popularExhibitions || []);
 
   // Featured Artifacts (Top 3)
@@ -193,11 +238,10 @@ async function loadOverview() {
   }
 }
 
-// 3. Render Dashboard Charts
+// ==================== 3. DASHBOARD CHARTS ====================
 function renderDashboardCharts(galleries, exhibitions) {
   if (typeof Chart === 'undefined') return;
 
-  // Gallery chart
   const gCtx = $('dash-galleries-chart')?.getContext('2d');
   if (gCtx) {
     if (state.charts.dashGalleries) state.charts.dashGalleries.destroy();
@@ -221,7 +265,6 @@ function renderDashboardCharts(galleries, exhibitions) {
     });
   }
 
-  // Exhibitions chart
   const eCtx = $('dash-exhibitions-chart')?.getContext('2d');
   if (eCtx) {
     if (state.charts.dashExhibitions) state.charts.dashExhibitions.destroy();
@@ -243,7 +286,7 @@ function renderDashboardCharts(galleries, exhibitions) {
   }
 }
 
-// 4. Visitors Management Module
+// ==================== 4. VISITORS ====================
 async function loadVisitors() {
   const search = encodeURIComponent($('visitor-search')?.value.trim() || '');
   const data = await apiGet(`/visitors?search=${search}`);
@@ -311,7 +354,7 @@ window.viewVisitorProfile = async function(visitorId) {
 
   details.innerHTML = `
     <div class="detail-item">
-      <label>Visitor ID & Classification</label>
+      <label>Visitor ID &amp; Classification</label>
       <span>${safe(p.id)} · ${safe(p.visitorType || 'General')} (${safe(p.gender || 'Not specified')})</span>
     </div>
     <div class="detail-item">
@@ -319,7 +362,7 @@ window.viewVisitorProfile = async function(visitorId) {
       <span>${safe(p.email || 'No email')} · ${safe(p.phone || 'No phone')}</span>
     </div>
     <div class="detail-item">
-      <label>RFID Card & Ticket</label>
+      <label>RFID Card &amp; Ticket</label>
       <span>RFID: <b>${safe(p.rfidCard || 'Assigned at Gate')}</b> | Ticket: <b>${safe(p.ticketType || 'Standard')}</b> (₹${safe(p.ticketPrice || 100)})</span>
     </div>
     <div class="detail-item">
@@ -342,7 +385,7 @@ window.viewVisitorProfile = async function(visitorId) {
   $('visitors-page').querySelector('.visitors-layout').classList.add('has-panel');
 };
 
-// 5. Galleries Management Module
+// ==================== 5. GALLERIES ====================
 async function loadGalleries() {
   const data = await apiGet('/galleries');
   const list = $('galleries-list');
@@ -369,18 +412,39 @@ async function loadGalleries() {
         </div>
         ${(g.artifacts || []).length ? `
           <div style="margin-top: 10px; font-size: 11px; color: var(--muted);">
-            <b>Included Artifacts:</b> ${safe(g.artifacts.map(a => a.title).join(', '))}
+            <b>Included Artifacts:</b> ${safe(g.artifacts.map(a => a.title).filter(Boolean).join(', '))}
           </div>
         ` : ''}
+        <div style="margin-top: 12px;">
+          <button class="book-btn" onclick="openBookingModal('GALLERY', '${safe(g.id)}', '${safe(g.name)}', 'galleries', '${safe(g.id)}')">🎟 Get Access Pass</button>
+        </div>
       </div>
     </article>
   `).join('');
 }
 
-// 6. Artifacts Management Module
+// ==================== 6. ARTIFACTS (with dynamic category tabs) ====================
+async function loadArtifactCategories() {
+  const data = await apiGet('/artifact-categories');
+  const tabsContainer = $('artifact-category-tabs');
+  if (!tabsContainer) return;
+
+  // Keep the "All Categories" tab, remove old static ones
+  tabsContainer.innerHTML = `<button class="tab-btn active" data-category="All">All Categories</button>`;
+
+  const categories = data?.categories || [];
+  categories.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn';
+    btn.dataset.category = cat;
+    btn.textContent = cat;
+    tabsContainer.appendChild(btn);
+  });
+}
+
 async function loadArtifacts() {
   const search = encodeURIComponent($('artifact-search')?.value.trim() || '');
-  const category = encodeURIComponent(state.selectedCategory);
+  const category = encodeURIComponent(state.selectedCategory === 'All' ? '' : state.selectedCategory);
   const data = await apiGet(`/artifacts?search=${search}&category=${category}`);
   const list = $('artifacts-list');
   if (!data || !data.artifacts) return;
@@ -401,7 +465,7 @@ async function loadArtifacts() {
         </div>
         <h3>${safe(a.title)}</h3>
         <p>${safe(a.description || 'Historic piece of high artistic and cultural value.')}</p>
-        ${a.historicalDetails ? `
+        ${a.historicalDetails && a.historicalDetails !== a.description ? `
           <div style="margin-top: 8px; font-size: 11.5px; color: #536356; background: #fafaf5; padding: 6px 10px; border-radius: 6px; border-left: 2px solid var(--gold);">
             <b>Historical Context:</b> ${safe(a.historicalDetails)}
           </div>
@@ -412,12 +476,15 @@ async function loadArtifacts() {
           <span class="metadata-pill">⏳ ${safe(a.period || 'Ancient')}</span>
           <span class="metadata-pill" style="color: var(--green);">● ${safe(a.status || 'On Display')}</span>
         </div>
+        <div style="margin-top: 12px;">
+          <button class="book-btn" onclick="openBookingModal('ARTIFACT', '${safe(a.id)}', '${safe(a.title)}', 'artifacts', '${safe(a.id)}')">🎟 Get Viewing Pass</button>
+        </div>
       </div>
     </article>
   `).join('');
 }
 
-// 7. Exhibitions Management Module
+// ==================== 7. EXHIBITIONS ====================
 async function loadExhibitions() {
   const data = await apiGet('/exhibitions');
   const list = $('exhibitions-list');
@@ -443,15 +510,18 @@ async function loadExhibitions() {
         </div>
         ${(e.artifacts || []).length ? `
           <div style="margin-top: 10px; font-size: 11px; color: var(--muted);">
-            <b>Featured Objects:</b> ${safe(e.artifacts.map(a => a.title).join(', '))}
+            <b>Featured Objects:</b> ${safe(e.artifacts.map(a => a.title).filter(Boolean).join(', '))}
           </div>
         ` : ''}
+        <div style="margin-top: 12px;">
+          <button class="book-btn" onclick="openBookingModal('EXHIBITION', '${safe(e.id)}', '${safe(e.name)}', 'exhibitions', '${safe(e.id)}')">🎟 Book Tickets</button>
+        </div>
       </div>
     </article>
   `).join('');
 }
 
-// 8. Events Management Module
+// ==================== 8. EVENTS ====================
 async function loadEvents() {
   const data = await apiGet('/events');
   const list = $('events-list');
@@ -481,12 +551,181 @@ async function loadEvents() {
             <b>Registered Participants:</b> ${safe(ev.attendees.map(a => a.name).join(', '))}
           </div>
         ` : ''}
+        <div style="margin-top: 12px;">
+          <button class="book-btn" onclick="openBookingModal('EVENT', '${safe(ev.id)}', '${safe(ev.name)}', 'events', '${safe(ev.id)}')">🎟 Book Tickets</button>
+        </div>
       </div>
     </article>
   `).join('');
 }
 
-// 9. Analytics Module
+// ==================== 9. TICKET COUNTER PAGE ====================
+const TICKET_PRICES = {
+  EVENT:      { Standard: 200, VIP: 500, Student: 100, Child: 75 },
+  EXHIBITION: { Adult: 150, Student: 75, Child: 50, Family: 350 },
+  GALLERY:    { 'Access Pass': 100, Student: 60, Child: 40 },
+  ARTIFACT:   { 'Viewing Pass': 50, Student: 30, Guided: 120 }
+};
+
+async function loadTickets(itemType) {
+  state.ticketActiveType = itemType || state.ticketActiveType;
+  const type = state.ticketActiveType;
+
+  // Render pricing banner
+  const prices = TICKET_PRICES[type] || {};
+  $('pricing-list').innerHTML = Object.entries(prices).map(([t, p]) =>
+    `<div class="pricing-item"><span>${t}</span><strong>${formatCurrency(p)}</strong></div>`
+  ).join('');
+
+  const list = $('tickets-item-list');
+  list.innerHTML = `<div class="loading-state">Loading ${type.toLowerCase()}s…</div>`;
+
+  let items = [];
+  if (type === 'EVENT') {
+    const data = await apiGet('/events');
+    items = (data?.events || []).map(e => ({
+      id: e.id, name: e.name, imageCategory: 'events',
+      meta: `${e.date || 'TBA'} · ${e.venue || 'Auditorium'}`,
+      info: `Capacity: ${e.capacity || 50} | Registered: ${e.registrationCount || 0}`,
+      desc: e.description
+    }));
+  } else if (type === 'EXHIBITION') {
+    const data = await apiGet('/exhibitions');
+    items = (data?.exhibitions || []).map(e => ({
+      id: e.id, name: e.name, imageCategory: 'exhibitions',
+      meta: `${e.startDate || 'Current'} — ${e.endDate || 'Ongoing'} · ${e.venue || 'Main Hall'}`,
+      info: `Artifacts Featured: ${e.artifactCount || 0}`,
+      desc: e.description
+    }));
+  } else if (type === 'GALLERY') {
+    const data = await apiGet('/galleries');
+    items = (data?.galleries || []).map(g => ({
+      id: g.id, name: g.name, imageCategory: 'galleries',
+      meta: `Floor ${g.floor || 'G'} · ${g.location || 'Wing A'}`,
+      info: `Artifacts: ${g.artifactCount || 0} | Capacity: ${g.capacity || 50}`,
+      desc: g.description
+    }));
+  } else if (type === 'ARTIFACT') {
+    const data = await apiGet('/artifacts');
+    items = (data?.artifacts || []).map(a => ({
+      id: a.id, name: a.title, imageCategory: 'artifacts',
+      meta: `${a.category || 'Artifact'} · ${a.origin || 'Unknown'} · ${a.period || 'Historical'}`,
+      info: `Status: ${a.status || 'On Display'}`,
+      desc: a.description
+    }));
+  }
+
+  if (items.length === 0) {
+    list.innerHTML = `<div class="empty-state">No ${type.toLowerCase()}s found in Neo4j.</div>`;
+    return;
+  }
+
+  list.innerHTML = items.map(item => `
+    <article class="record-card">
+      <div class="record-media">${buildImageTag({ id: item.id }, item.imageCategory, item.name)}</div>
+      <div class="card-content">
+        <span class="tag category">${safe(type)}</span>
+        <h3>${safe(item.name)}</h3>
+        <p>${safe(item.meta)}</p>
+        <p style="font-size: 11px; color: var(--muted); margin-top: 4px;">${safe(item.info)}</p>
+        ${item.desc ? `<p style="font-size: 11.5px; margin-top: 6px;">${safe(item.desc)}</p>` : ''}
+        <div style="margin-top: 14px;">
+          <button class="book-btn" onclick="openBookingModal('${safe(type)}', '${safe(item.id)}', '${safe(item.name)}', '${item.imageCategory}', '${safe(item.id)}')">
+            🎟 ${type === 'GALLERY' || type === 'ARTIFACT' ? 'Get Access Pass' : 'Book Tickets'}
+          </button>
+        </div>
+      </div>
+    </article>
+  `).join('');
+}
+
+// ==================== 10. BOOKINGS PAGE ====================
+async function loadBookings() {
+  const search = encodeURIComponent($('booking-search')?.value.trim() || '');
+  const status = encodeURIComponent($('booking-status-filter')?.value || '');
+  const itemType = encodeURIComponent($('booking-type-filter')?.value || '');
+
+  const data = await apiGet(`/bookings?search=${search}&status=${status}&itemType=${itemType}`);
+  if (!data) return;
+
+  state.bookings = data.bookings || [];
+  const stats = data.stats || {};
+
+  // Stats row
+  $('bk-total').textContent = stats.total ?? 0;
+  $('bk-confirmed').textContent = stats.confirmed ?? 0;
+  $('bk-cancelled').textContent = stats.cancelled ?? 0;
+  $('bk-revenue').textContent = formatCurrency(stats.totalRevenue);
+
+  renderBookingsTable();
+}
+
+function renderBookingsTable() {
+  const tbody = $('bookings-table-body');
+  const list = state.bookings;
+
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-state">No bookings found. Use the Ticket Counter to create demo bookings.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map(b => `
+    <tr class="${b.status === 'CANCELLED' ? 'row-cancelled' : ''}">
+      <td><code style="font-size: 10px; color: var(--muted);">${safe(b.bookingId)}</code></td>
+      <td>
+        <strong style="color: var(--green-dark);">${safe(b.visitorName)}</strong>
+        <div style="font-size: 11px; color: var(--muted);">${safe(b.visitorEmail || '')}</div>
+      </td>
+      <td>${safe(b.itemName || b.itemId)}</td>
+      <td><span class="tag">${safe(b.itemType)}</span></td>
+      <td>${safe(b.ticketType)}</td>
+      <td><strong>${safe(b.quantity)}</strong></td>
+      <td><strong style="color: var(--gold);">${formatCurrency(b.totalAmount)}</strong></td>
+      <td style="font-size: 11px;">${formatDate(b.bookingDate)}</td>
+      <td>
+        <span class="booking-status-badge booking-status-${(b.status || '').toLowerCase()}">
+          ${safe(b.status || 'CONFIRMED')}
+        </span>
+      </td>
+      <td>
+        ${b.status !== 'CANCELLED' ? `
+          <button class="danger-btn" style="padding: 4px 9px; font-size: 11px;"
+            onclick="cancelBooking('${safe(b.bookingId)}')">Cancel</button>
+        ` : '<span style="font-size:11px; color:var(--muted);">—</span>'}
+      </td>
+    </tr>
+  `).join('');
+}
+
+window.cancelBooking = async function(bookingId) {
+  if (!confirm(`Cancel booking ${bookingId}? This cannot be undone.`)) return;
+  try {
+    await apiDelete(`/bookings/${bookingId}`);
+    showToast('Booking cancelled successfully');
+    loadBookings();
+  } catch (err) {
+    showToast(`Error: ${err.message}`);
+  }
+};
+
+// Export CSV
+function exportBookingsCSV() {
+  const list = state.bookings;
+  if (!list.length) { showToast('No bookings to export'); return; }
+  const headers = ['Booking ID','Visitor','Email','Item','Type','Ticket','Qty','Amount','Date','Status'];
+  const rows = list.map(b => [
+    b.bookingId, b.visitorName, b.visitorEmail, b.itemName, b.itemType,
+    b.ticketType, b.quantity, b.totalAmount, b.bookingDate, b.status
+  ].map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'smartmuseum_bookings.csv';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ==================== 11. ANALYTICS ====================
 async function loadAnalytics() {
   const data = await apiGet('/analytics');
   if (!data) return;
@@ -494,7 +733,6 @@ async function loadAnalytics() {
 
   if (typeof Chart === 'undefined') return;
 
-  // Trend visits chart
   const tCtx = $('trend-visits-chart')?.getContext('2d');
   if (tCtx) {
     if (state.charts.trendVisits) state.charts.trendVisits.destroy();
@@ -521,7 +759,6 @@ async function loadAnalytics() {
     });
   }
 
-  // Gallery footfall ranking
   const gCtx = $('analytics-galleries-chart')?.getContext('2d');
   if (gCtx) {
     if (state.charts.analyticsGalleries) state.charts.analyticsGalleries.destroy();
@@ -545,16 +782,16 @@ async function loadAnalytics() {
     });
   }
 
-  // Visitor Interest & Preferences
   const pCtx = $('analytics-pref-chart')?.getContext('2d');
   if (pCtx) {
     if (state.charts.analyticsPref) state.charts.analyticsPref.destroy();
+    const prefData = data.preferences.filter(p => p.preference);
     state.charts.analyticsPref = new Chart(pCtx, {
       type: 'pie',
       data: {
-        labels: data.preferences.map(p => p.preference),
+        labels: prefData.map(p => p.preference),
         datasets: [{
-          data: data.preferences.map(p => p.count),
+          data: prefData.map(p => p.count),
           backgroundColor: ['#244130', '#406c50', '#b38947', '#7b8e7e', '#884ea0', '#2e86c1']
         }]
       },
@@ -566,17 +803,17 @@ async function loadAnalytics() {
     });
   }
 
-  // Artifact Categories
   const cCtx = $('analytics-category-chart')?.getContext('2d');
   if (cCtx) {
     if (state.charts.analyticsCategory) state.charts.analyticsCategory.destroy();
+    const catData = data.artifactCategories.filter(c => c.category);
     state.charts.analyticsCategory = new Chart(cCtx, {
       type: 'doughnut',
       data: {
-        labels: data.artifactCategories.map(c => c.category),
+        labels: catData.map(c => c.category),
         datasets: [{
-          data: data.artifactCategories.map(c => c.count),
-          backgroundColor: ['#406c50', '#b38947', '#2980b9', '#884ea0', '#d35400', '#16a085']
+          data: catData.map(c => c.count),
+          backgroundColor: ['#406c50', '#b38947', '#2980b9', '#884ea0', '#d35400', '#16a085', '#c0392b', '#27ae60']
         }]
       },
       options: {
@@ -586,49 +823,132 @@ async function loadAnalytics() {
       }
     });
   }
+
+  const bCtx = $('analytics-bookings-chart')?.getContext('2d');
+  if (bCtx) {
+    if (state.charts.analyticsBookings) state.charts.analyticsBookings.destroy();
+    const bkData = data.bookingStats || [];
+    state.charts.analyticsBookings = new Chart(bCtx, {
+      type: 'bar',
+      data: {
+        labels: bkData.map(b => b.itemType),
+        datasets: [{
+          label: 'Bookings',
+          data: bkData.map(b => b.count),
+          backgroundColor: ['#244130', '#406c50', '#b38947', '#7b8e7e'],
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+      }
+    });
+  }
 }
 
-// 10. Graph Relationship Explorer (D3 Force-Directed)
+// ==================== 12. GRAPH EXPLORER ====================
 let graphSimulation = null;
+
 async function loadGraphExplorer() {
-  const data = await apiGet('/graph?limit=150');
-  if (!data || !data.nodes || !data.links) return;
+  const container = $('graph-container');
+  const loading = $('graph-loading');
+  if (loading) loading.classList.remove('hidden');
+
+  const filter = document.querySelector('#graph-filter-row .graph-filter-btn.active')?.dataset.gfilter || 'ALL';
+  const data = await apiGet(`/graph?limit=150&filter=${filter}`);
+
+  if (loading) loading.classList.add('hidden');
+
+  if (!data || !data.nodes || data.nodes.length === 0) {
+    const svg = document.querySelector('#graph-svg');
+    if (svg) {
+      svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" font-size="14" fill="#aaa" dominant-baseline="middle">No graph data returned from Neo4j</text>`;
+    }
+    return;
+  }
+
   state.graphData = data;
-  renderForceGraph(data);
+
+  const infoBar = $('graph-info-bar');
+  if (infoBar) {
+    infoBar.textContent = `${data.totalNodes || data.nodes.length} nodes · ${data.totalLinks || data.links.length} relationships`;
+  }
+
+  // Slight delay to ensure SVG is rendered and has dimensions
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      renderForceGraph(data);
+    });
+  });
 }
 
 function renderForceGraph(graph) {
-  if (typeof d3 === 'undefined') return;
+  if (typeof d3 === 'undefined') {
+    console.error('D3 not loaded');
+    return;
+  }
+
+  const svgEl = document.getElementById('graph-svg');
+  if (!svgEl) return;
 
   const svg = d3.select('#graph-svg');
   svg.selectAll('*').remove();
 
-  const container = document.querySelector('.graph-explorer-container');
-  const width = container.clientWidth || 900;
-  const height = container.clientHeight || 640;
+  // Get actual rendered dimensions from the container
+  const container = document.getElementById('graph-container');
+  const rect = container.getBoundingClientRect();
+  const width = Math.max(rect.width || container.offsetWidth || 900, 600);
+  const height = Math.max(rect.height || container.offsetHeight || 580, 400);
+
+  // Set explicit SVG dimensions
+  svg.attr('width', width).attr('height', height);
 
   const colorMap = {
-    VISITOR: '#2b6cb0',
-    GALLERY: '#2e7d32',
-    ARTIFACT: '#d97706',
+    VISITOR:    '#2b6cb0',
+    GALLERY:    '#2e7d32',
+    ARTIFACT:   '#d97706',
     EXHIBITION: '#805ad5',
-    EVENT: '#dd6b20',
-    VISIT: '#718096'
+    EVENT:      '#dd6b20',
+    VISIT:      '#718096',
+    STAFF:      '#c53030',
+    FEEDBACK:   '#2c7a7b',
+    CONSERVATION: '#744210'
   };
 
-  const g = svg.append('g');
+  const g = svg.append('g').attr('class', 'graph-root');
+
+  // Arrow marker definition
+  svg.append('defs').append('marker')
+    .attr('id', 'arrowhead')
+    .attr('viewBox', '-0 -5 10 10')
+    .attr('refX', 22)
+    .attr('refY', 0)
+    .attr('orient', 'auto')
+    .attr('markerWidth', 6)
+    .attr('markerHeight', 6)
+    .append('path')
+    .attr('d', 'M 0,-5 L 10,0 L 0,5')
+    .attr('fill', '#b0bec5')
+    .style('stroke', 'none');
 
   // Zoom behaviour
-  svg.call(d3.zoom().scaleExtent([0.3, 3]).on('zoom', (event) => {
-    g.attr('transform', event.transform);
-  }));
+  const zoom = d3.zoom()
+    .scaleExtent([0.1, 4])
+    .on('zoom', (event) => {
+      g.attr('transform', event.transform);
+    });
+  svg.call(zoom);
 
   // Force simulation
+  if (graphSimulation) graphSimulation.stop();
   graphSimulation = d3.forceSimulation(graph.nodes)
-    .force('link', d3.forceLink(graph.links).id(d => d.id).distance(90))
-    .force('charge', d3.forceManyBody().strength(-240))
+    .force('link', d3.forceLink(graph.links).id(d => d.id).distance(100))
+    .force('charge', d3.forceManyBody().strength(-280))
     .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collision', d3.forceCollide().radius(28));
+    .force('collision', d3.forceCollide().radius(30));
 
   // Links
   const link = g.append('g')
@@ -636,31 +956,29 @@ function renderForceGraph(graph) {
     .selectAll('line')
     .data(graph.links)
     .enter().append('line')
-    .attr('stroke', '#cbd5e0')
-    .attr('stroke-width', 1.6)
-    .attr('stroke-opacity', 0.8);
+    .attr('stroke', '#b0bec5')
+    .attr('stroke-width', 1.5)
+    .attr('stroke-opacity', 0.7)
+    .attr('marker-end', 'url(#arrowhead)');
 
-  // Link labels
-  const linkText = g.append('g')
+  // Link labels (shown only when count is manageable)
+  const showLinkLabels = graph.links.length < 80;
+  const linkText = showLinkLabels ? g.append('g')
     .attr('class', 'link-labels')
     .selectAll('text')
     .data(graph.links)
     .enter().append('text')
-    .attr('font-size', '8.5px')
-    .attr('fill', '#8899a6')
+    .attr('font-size', '8px')
+    .attr('fill', '#9aaeb0')
     .attr('text-anchor', 'middle')
-    .text(d => d.type);
+    .text(d => d.type) : null;
 
-  // Nodes
-  const node = g.append('g')
+  // Node groups
+  const nodeGroup = g.append('g')
     .attr('class', 'nodes')
-    .selectAll('circle')
+    .selectAll('g')
     .data(graph.nodes)
-    .enter().append('circle')
-    .attr('r', d => d.type === 'GALLERY' || d.type === 'EXHIBITION' ? 18 : 14)
-    .attr('fill', d => colorMap[d.type] || '#555')
-    .attr('stroke', '#fff')
-    .attr('stroke-width', 2.5)
+    .enter().append('g')
     .style('cursor', 'pointer')
     .call(d3.drag()
       .on('start', dragstarted)
@@ -668,35 +986,51 @@ function renderForceGraph(graph) {
       .on('end', dragended)
     );
 
-  // Node Labels
-  const label = g.append('g')
-    .attr('class', 'node-labels')
-    .selectAll('text')
-    .data(graph.nodes)
-    .enter().append('text')
+  // Circle per node (selected-type nodes are larger, ringed in gold; neighbours are slightly dimmed)
+  const filterActive = graph.nodes.some(n => n.selected);
+  nodeGroup.append('circle')
+    .attr('r', d => {
+      const base = (d.type === 'GALLERY' || d.type === 'EXHIBITION') ? 18 : (d.type === 'VISITOR' ? 16 : 13);
+      return d.selected ? base + 4 : base;
+    })
+    .attr('fill', d => colorMap[d.type] || '#607d8b')
+    .attr('fill-opacity', d => (filterActive && !d.selected) ? 0.55 : 1)
+    .attr('stroke', d => d.selected ? '#b38947' : '#fff')
+    .attr('stroke-width', d => d.selected ? 4 : 2.5);
+
+  // Node labels
+  nodeGroup.append('text')
     .attr('font-size', '10px')
     .attr('font-weight', '600')
-    .attr('dx', 18)
+    .attr('dx', d => (d.type === 'GALLERY' || d.type === 'EXHIBITION' ? 22 : 18))
     .attr('dy', 4)
     .attr('fill', '#2d3748')
-    .text(d => d.label.length > 20 ? d.label.substring(0, 18) + '…' : d.label);
+    .text(d => {
+      const lbl = d.label || '';
+      return lbl.length > 18 ? lbl.substring(0, 16) + '…' : lbl;
+    });
 
   // Tooltip
   const tooltip = $('graph-tooltip');
-  node.on('mouseover', (event, d) => {
+  nodeGroup.on('mouseover', (event, d) => {
     tooltip.innerHTML = `
       <strong>${safe(d.label)}</strong>
-      <div style="font-size: 11px; margin-top: 3px; color: #cbd5e0;">Label: ${safe(d.type)} | Code: ${safe(d.code)}</div>
+      <div style="font-size: 10px; margin-top: 3px; color: #a0aec0;">
+        Type: ${safe(d.type)} &nbsp;|&nbsp; ID: ${safe(d.code)}
+      </div>
     `;
     tooltip.classList.remove('hidden');
   }).on('mousemove', (event) => {
-    const rect = container.getBoundingClientRect();
-    tooltip.style.left = `${event.clientX - rect.left + 15}px`;
-    tooltip.style.top = `${event.clientY - rect.top + 15}px`;
+    const cRect = container.getBoundingClientRect();
+    const tx = event.clientX - cRect.left + 14;
+    const ty = event.clientY - cRect.top + 14;
+    tooltip.style.left = `${Math.min(tx, width - 200)}px`;
+    tooltip.style.top = `${Math.min(ty, height - 80)}px`;
   }).on('mouseout', () => {
     tooltip.classList.add('hidden');
   });
 
+  // Tick handler
   graphSimulation.on('tick', () => {
     link
       .attr('x1', d => d.source.x)
@@ -704,17 +1038,13 @@ function renderForceGraph(graph) {
       .attr('x2', d => d.target.x)
       .attr('y2', d => d.target.y);
 
-    linkText
-      .attr('x', d => (d.source.x + d.target.x) / 2)
-      .attr('y', d => (d.source.y + d.target.y) / 2);
+    if (linkText) {
+      linkText
+        .attr('x', d => (d.source.x + d.target.x) / 2)
+        .attr('y', d => (d.source.y + d.target.y) / 2);
+    }
 
-    node
-      .attr('cx', d => d.x)
-      .attr('cy', d => d.y);
-
-    label
-      .attr('x', d => d.x)
-      .attr('y', d => d.y);
+    nodeGroup.attr('transform', d => `translate(${d.x},${d.y})`);
   });
 
   function dragstarted(event, d) {
@@ -733,7 +1063,67 @@ function renderForceGraph(graph) {
   }
 }
 
-// Navigation router
+// ==================== 13. BOOKING MODAL ====================
+const TICKET_PRICES_FE = {
+  EVENT:      { Standard: 200, VIP: 500, Student: 100, Child: 75 },
+  EXHIBITION: { Adult: 150, Student: 75, Child: 50, Family: 350 },
+  GALLERY:    { 'Access Pass': 100, Student: 60, Child: 40 },
+  ARTIFACT:   { 'Viewing Pass': 50, Student: 30, Guided: 120 }
+};
+
+window.openBookingModal = function(itemType, itemId, itemName, imageCategory, imageId) {
+  const modal = $('booking-modal');
+  const typeUpper = String(itemType).toUpperCase();
+  const prices = TICKET_PRICES_FE[typeUpper] || TICKET_PRICES_FE.EVENT;
+
+  // Populate hidden fields
+  $('bk-item-id').value = itemId;
+  $('bk-item-type').value = typeUpper;
+  $('bk-item-name').value = itemName;
+
+  // Header
+  $('booking-modal-title').textContent = `Book Tickets — ${itemName}`;
+  $('booking-item-name').textContent = itemName;
+  $('booking-item-type-label').textContent = typeUpper;
+  $('booking-item-meta').textContent = itemId;
+
+  // Image
+  const imgWrap = $('booking-item-image-wrap');
+  const imgSrc = IMAGE_MANIFEST[imageCategory]?.[imageId] || '';
+  imgWrap.innerHTML = imgSrc
+    ? `<img src="${safe(imgSrc)}" alt="${safe(itemName)}" style="width:80px;height:70px;object-fit:cover;border-radius:8px;" onerror="this.parentNode.innerHTML='<div class=image-fallback style=width:80px;height:70px;border-radius:8px;font-size:10px>${safe(itemName)}</div>'">`
+    : `<div class="image-fallback" style="width:80px;height:70px;border-radius:8px;font-size:10px;">${safe(itemName)}</div>`;
+
+  // Ticket type dropdown
+  const select = $('bk-ticket-type');
+  select.innerHTML = Object.entries(prices).map(([type, price]) =>
+    `<option value="${safe(type)}">${type} — ${formatCurrency(price)}</option>`
+  ).join('');
+
+  // Reset quantity and state
+  state.bookingModalData.quantity = 1;
+  state.bookingModalData.ticketPrices = prices;
+  $('qty-display').textContent = '1';
+  updateBookingTotal();
+
+  // Reset form
+  $('bk-visitor-name').value = '';
+  $('bk-visitor-email').value = '';
+
+  modal.classList.remove('hidden');
+};
+
+function updateBookingTotal() {
+  const select = $('bk-ticket-type');
+  const typeKey = select?.value;
+  const prices = state.bookingModalData.ticketPrices;
+  const price = prices[typeKey] || 0;
+  state.bookingModalData.unitPrice = price;
+  const total = price * state.bookingModalData.quantity;
+  $('booking-total-display').textContent = formatCurrency(total);
+}
+
+// ==================== 14. NAVIGATION ROUTER ====================
 function navigateTo(pageId) {
   state.activePage = pageId;
   document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
@@ -752,42 +1142,45 @@ function navigateTo(pageId) {
     artifacts: 'Artifact Catalogue',
     exhibitions: 'Exhibitions Management',
     events: 'Events & Schedules',
+    tickets: 'Ticket Counter',
+    bookings: 'Booking Management',
     analytics: 'Visitor & Collection Analytics',
     explorer: 'Neo4j Graph Relationship Explorer'
   };
   $('page-title').textContent = titles[pageId] || 'SmartMuseum';
 
-  // Load relevant data
   if (pageId === 'overview') loadOverview();
   else if (pageId === 'visitors') loadVisitors();
   else if (pageId === 'galleries') loadGalleries();
-  else if (pageId === 'artifacts') loadArtifacts();
+  else if (pageId === 'artifacts') { loadArtifactCategories().then(() => loadArtifacts()); }
   else if (pageId === 'exhibitions') loadExhibitions();
   else if (pageId === 'events') loadEvents();
+  else if (pageId === 'tickets') loadTickets();
+  else if (pageId === 'bookings') loadBookings();
   else if (pageId === 'analytics') loadAnalytics();
   else if (pageId === 'explorer') loadGraphExplorer();
 }
 
-// Event Listeners Initialization
+// ==================== 15. EVENT LISTENERS ====================
 function initEvents() {
-  // Navigation Links
+  // Navigation
   document.querySelectorAll('.nav-link').forEach(link => {
     link.addEventListener('click', () => navigateTo(link.dataset.page));
   });
 
-  // Action jumps
+  // Jump buttons
   document.querySelectorAll('[data-go]').forEach(btn => {
     btn.addEventListener('click', () => navigateTo(btn.dataset.go));
   });
 
-  // Refresh Button
+  // Refresh
   $('refresh-btn')?.addEventListener('click', async () => {
     showToast('Syncing with Neo4j AuraDB…');
     await checkHealth();
     navigateTo(state.activePage);
   });
 
-  // Artifact Search & Category Tabs
+  // Artifact search & category tabs
   $('artifact-search')?.addEventListener('input', () => {
     clearTimeout(state.searchTimer);
     state.searchTimer = setTimeout(loadArtifacts, 300);
@@ -802,7 +1195,7 @@ function initEvents() {
     }
   });
 
-  // Visitor Search & Filter
+  // Visitor search & filter
   $('visitor-search')?.addEventListener('input', () => {
     clearTimeout(state.searchTimer);
     state.searchTimer = setTimeout(loadVisitors, 300);
@@ -810,7 +1203,7 @@ function initEvents() {
   $('visitor-type-filter')?.addEventListener('change', renderVisitorsTable);
   $('visitor-sort')?.addEventListener('change', renderVisitorsTable);
 
-  // Close profile panel
+  // Close visitor profile panel
   $('close-profile-btn')?.addEventListener('click', () => {
     $('visitor-profile-panel').classList.add('hidden');
     $('visitors-page').querySelector('.visitors-layout').classList.remove('has-panel');
@@ -832,25 +1225,89 @@ function initEvents() {
       gender: $('v-gender').value,
       visitorType: $('v-type').value
     };
+    try {
+      const data = await apiPost('/visitors', payload);
+      showToast(`Visitor ${payload.name} registered successfully!`);
+      $('add-visitor-modal').classList.add('hidden');
+      $('add-visitor-form').reset();
+      loadVisitors();
+      loadOverview();
+    } catch (err) {
+      showToast(`Error: ${err.message}`);
+    }
+  });
+
+  // Ticket type tabs
+  $('ticket-type-tabs')?.addEventListener('click', (e) => {
+    if (e.target.classList.contains('tab-btn')) {
+      document.querySelectorAll('#ticket-type-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      loadTickets(e.target.dataset.ttype);
+    }
+  });
+
+  // Booking modal events
+  $('close-booking-modal-btn')?.addEventListener('click', () => $('booking-modal').classList.add('hidden'));
+  $('cancel-booking-btn')?.addEventListener('click', () => $('booking-modal').classList.add('hidden'));
+
+  $('bk-ticket-type')?.addEventListener('change', updateBookingTotal);
+
+  $('qty-minus')?.addEventListener('click', () => {
+    if (state.bookingModalData.quantity > 1) {
+      state.bookingModalData.quantity--;
+      $('qty-display').textContent = state.bookingModalData.quantity;
+      updateBookingTotal();
+    }
+  });
+
+  $('qty-plus')?.addEventListener('click', () => {
+    if (state.bookingModalData.quantity < 10) {
+      state.bookingModalData.quantity++;
+      $('qty-display').textContent = state.bookingModalData.quantity;
+      updateBookingTotal();
+    }
+  });
+
+  $('booking-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('confirm-booking-btn');
+    btn.disabled = true;
+    btn.textContent = 'Processing…';
+
+    const payload = {
+      visitorName: $('bk-visitor-name').value.trim(),
+      visitorEmail: $('bk-visitor-email').value.trim(),
+      itemId: $('bk-item-id').value,
+      itemType: $('bk-item-type').value,
+      itemName: $('bk-item-name').value,
+      ticketType: $('bk-ticket-type').value,
+      quantity: state.bookingModalData.quantity
+    };
 
     try {
-      const res = await fetch(`${API}/visitors`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (res.ok) {
-        showToast(`Visitor ${payload.name} created successfully!`);
-        $('add-visitor-modal').classList.add('hidden');
-        $('add-visitor-form').reset();
-        loadVisitors();
-        loadOverview();
-      } else {
-        showToast(`Error: ${data.error || 'Failed to save visitor'}`);
-      }
+      const data = await apiPost('/bookings', payload);
+      $('booking-modal').classList.add('hidden');
+      showTicketConfirmation(data.booking);
+      showToast('Booking confirmed!');
     } catch (err) {
-      showToast('Network error while registering visitor');
+      showToast(`Booking failed: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Confirm Booking →';
+    }
+  });
+
+  // Confirmation modal close
+  $('close-confirm-modal-btn')?.addEventListener('click', () => {
+    $('ticket-confirmation-modal').classList.add('hidden');
+  });
+
+  // Graph filter buttons
+  $('graph-filter-row')?.addEventListener('click', (e) => {
+    if (e.target.classList.contains('graph-filter-btn')) {
+      document.querySelectorAll('#graph-filter-row .graph-filter-btn').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      loadGraphExplorer();
     }
   });
 
@@ -861,9 +1318,54 @@ function initEvents() {
       showToast('Graph simulation restarted');
     }
   });
+
+  // Booking search & filters
+  $('booking-search')?.addEventListener('input', () => {
+    clearTimeout(state.searchTimer);
+    state.searchTimer = setTimeout(loadBookings, 300);
+  });
+  $('booking-status-filter')?.addEventListener('change', loadBookings);
+  $('booking-type-filter')?.addEventListener('change', loadBookings);
+
+  // Export CSV
+  $('export-bookings-btn')?.addEventListener('click', exportBookingsCSV);
 }
 
-// Initial Boot
+// ==================== 16. TICKET CONFIRMATION MODAL ====================
+function showTicketConfirmation(booking) {
+  if (!booking) return;
+  const modal = $('ticket-confirmation-modal');
+  const body = $('ticket-confirm-body');
+
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=SMARTMUSEUM-${encodeURIComponent(booking.bookingId)}`;
+
+  body.innerHTML = `
+    <div class="ticket-confirm-detail-row">
+      <div>
+        <div class="ticket-field"><label>Booking ID</label><span class="ticket-bid">${safe(booking.bookingId)}</span></div>
+        <div class="ticket-field"><label>Visitor</label><span>${safe(booking.visitorName)}</span></div>
+        <div class="ticket-field"><label>Item</label><span>${safe(booking.itemName || booking.itemId)}</span></div>
+        <div class="ticket-field"><label>Ticket Type</label><span>${safe(booking.ticketType)}</span></div>
+        <div class="ticket-field"><label>Quantity</label><span>${safe(booking.quantity)} × ${formatCurrency(booking.unitPrice)}</span></div>
+        <div class="ticket-field"><label>Total Paid</label><strong style="font-size:18px; color: var(--green-dark);">${formatCurrency(booking.totalAmount)}</strong></div>
+        <div class="ticket-field"><label>Date</label><span>${formatDate(booking.bookingDate)}</span></div>
+        <div class="ticket-field"><label>Status</label><span class="booking-status-badge booking-status-confirmed">CONFIRMED</span></div>
+      </div>
+      <div class="ticket-qr-wrap">
+        <img src="${qrUrl}" alt="QR Code" style="width:130px;height:130px;border-radius:8px;border:1px solid var(--line);"
+             onerror="this.style.display='none'">
+        <small style="display:block; text-align:center; margin-top:6px; color:var(--muted); font-size:10px;">Scan at Museum Gate</small>
+      </div>
+    </div>
+    <p style="font-size: 11px; color: var(--muted); margin-top: 12px; text-align: center;">
+      ⚠ This is a demo booking. No real payment has been processed.
+    </p>
+  `;
+
+  modal.classList.remove('hidden');
+}
+
+// ==================== 17. INITIAL BOOT ====================
 window.addEventListener('DOMContentLoaded', async () => {
   initEvents();
   await checkHealth();

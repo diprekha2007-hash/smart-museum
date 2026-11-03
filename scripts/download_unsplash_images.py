@@ -66,3 +66,4 @@ for rel_path, url in IMAGE_URLS.items():
     time.sleep(0.1)
 
 print('All authentic museum photographs downloaded successfully.')
+

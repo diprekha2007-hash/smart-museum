@@ -1,15 +1,17 @@
 services:
   - type: web
     name: smart-museum-system
-    env: node
+    runtime: node
     plan: free
-    buildCommand: cd backend && npm install
-    startCommand: node backend/server.js
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: node server.js
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
+      # Enter these four in the Render dashboard (never commit real values).
+      # NEO4J_DATABASE must be the real Aura database name (not necessarily "neo4j").
       - key: NEO4J_URI
         sync: false
       - key: NEO4J_USERNAME
@@ -17,4 +19,4 @@ services:
       - key: NEO4J_PASSWORD
         sync: false
       - key: NEO4J_DATABASE
-        value: neo4j
+        sync: false
